@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# Virtual envs
+venv/
+.venv/
+env/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets / local config
+.env
+.env.*
+*.local
+
+# Source framework text files (kept locally, not pushed)
+penny.txt
+growth.txt
+value.txt
+
+# Preview / runtime
+.claude/
+*.log
+*.pid
+
+# HuggingFace cache if it lands here
+.cache/

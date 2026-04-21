@@ -1,0 +1,20 @@
+[Unit]
+Description=Stock Screener (Flask + gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/stock-screener
+Environment="PATH=/opt/stock-screener/venv/bin"
+# Uncomment if you want Claude-backed sentiment:
+# Environment="ANTHROPIC_API_KEY=sk-ant-..."
+ExecStart=/opt/stock-screener/venv/bin/gunicorn -c gunicorn.conf.py app:app
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

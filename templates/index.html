@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stock Screener — Penny / Growth / Value</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel2: #1c232d;
+    --border: #2a313a;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #3aa0ff;
+    --green: #2ecc71;
+    --yellow: #f1c40f;
+    --red: #e74c3c;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+            "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+  @media (max-width: 920px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600;
+  }
+  label { display: block; font-size: 12px; color: var(--muted);
+          margin: 12px 0 4px; }
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input[type="text"]:focus, select:focus, input[type="number"]:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .check { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+  .check input { transform: translateY(1px); }
+
+  .btn {
+    display: inline-block;
+    margin-top: 16px;
+    background: var(--accent);
+    color: #0b1320;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn.secondary {
+    background: transparent; color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 8px; }
+
+  .hint {
+    font-size: 11px; color: var(--muted); margin-top: 2px;
+  }
+
+  .results-empty { color: var(--muted); font-size: 14px; }
+
+  .meta { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
+  .meta-item { font-size: 13px; }
+  .meta-item b { display: block; color: var(--muted); font-weight: 500;
+                 font-size: 11px; text-transform: uppercase;
+                 letter-spacing: 0.06em; margin-bottom: 2px; }
+
+  .verdict-block {
+    display: flex; gap: 20px; align-items: center;
+    padding: 14px; border-radius: 8px;
+    background: var(--panel2); border: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .verdict-label { font-size: 24px; font-weight: 700; }
+  .score-big { font-size: 28px; font-weight: 700; }
+  .score-max { color: var(--muted); font-size: 16px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    color: var(--muted); font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    font-size: 11px;
+  }
+  td.status-pass { color: var(--green); white-space: nowrap; }
+  td.status-neutral { color: var(--yellow); white-space: nowrap; }
+  td.status-fail { color: var(--red); white-space: nowrap; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .badge.auto { border-color: var(--accent); color: var(--accent); }
+  .section-h {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 18px 0 8px;
+  }
+
+  pre.raw {
+    background: #0b0e12; border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px;
+    font-size: 11px; overflow: auto; max-height: 400px;
+    color: #cfd6dc;
+  }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+
+  .err {
+    background: #3b1e20; border: 1px solid #7a3838; color: #ffb5b5;
+    padding: 10px; border-radius: 6px; font-size: 13px; margin-top: 10px;
+    white-space: pre-wrap;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--muted);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .frameworks-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  }
+  @media (max-width: 920px) {
+    .frameworks-grid { grid-template-columns: 1fr; }
+  }
+  .fw-card {
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+  }
+  .fw-card h3 { margin: 0 0 6px; font-size: 13px;
+                text-transform: uppercase; letter-spacing: 0.06em; }
+  .fw-card.suggested { border-color: var(--accent); }
+  .fw-suggested-tag {
+    font-size: 10px; color: var(--accent); margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Stock Screener — Penny / Growth / Value</h1>
+<div class="sub">
+  Auto-routes a ticker to the right 10-filter framework by market cap.
+  All options are editable. Preview locally before deploy.
+</div>
+
+<div class="layout">
+
+  <!-- ============ LEFT: controls ============ -->
+  <form id="form" class="panel" onsubmit="return false;">
+    <h2>Query</h2>
+
+    <label for="ticker">Ticker</label>
+    <input id="ticker" type="text" placeholder="AAPL" autocomplete="off" />
+
+    <label for="framework">Framework</label>
+    <select id="framework">
+      <option value="auto">Auto (by market cap)</option>
+      <option value="penny">Penny</option>
+      <option value="growth">Growth</option>
+      <option value="value">Value</option>
+    </select>
+    <div id="fw-hint" class="hint"></div>
+
+    <label for="profile">Profile (weighting)</label>
+    <select id="profile"></select>
+
+    <label for="sector">Sector overlay</label>
+    <select id="sector">
+      <option value="auto">Auto-detect</option>
+      <option value="none">None (pure profile)</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label for="scoring_mode">Scoring mode</label>
+        <select id="scoring_mode">
+          <option value="strict">strict</option>
+          <option value="normal" selected>normal</option>
+          <option value="generous">generous</option>
+        </select>
+      </div>
+      <div>
+        <label for="engine">Sentiment engine</label>
+        <select id="engine">
+          <option value="auto">auto</option>
+          <option value="keyword">keyword</option>
+          <option value="finbert">finbert</option>
+          <option value="claude">claude</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="lang">Language</label>
+        <select id="lang">
+          <option value="en">en</option>
+          <option value="uz">uz</option>
+        </select>
+      </div>
+      <div>
+        <label for="news_days">News window (days)</label>
+        <input id="news_days" type="number" placeholder="365" min="1" />
+      </div>
+    </div>
+
+    <label for="filing_days">Filings window (days, penny only)</label>
+    <input id="filing_days" type="number" placeholder="30" min="1" />
+
+    <div class="check">
+      <input id="apply_bonuses" type="checkbox" checked />
+      <label for="apply_bonuses" style="margin: 0;">Apply bonus rules</label>
+    </div>
+
+    <div class="btn-row">
+      <button id="btn-run" class="btn" type="button">Run</button>
+      <button id="btn-clear-cache" class="btn secondary" type="button"
+              title="Flush cached ticker data (yfinance / SEC).">
+        Clear cache
+      </button>
+    </div>
+    <div id="cache-stats" class="hint" style="margin-top:6px;"></div>
+  </form>
+
+  <!-- ============ RIGHT: results ============ -->
+  <div class="panel" id="results-panel">
+    <h2>Result</h2>
+    <div id="results" class="results-empty">
+      Enter a ticker and click Run. Evaluation takes 5–15 s
+      (live yfinance + SEC EDGAR fetches).
+    </div>
+  </div>
+</div>
+
+<script>
+let CONFIG = null;
+
+async function loadConfig() {
+  const r = await fetch("/api/config");
+  CONFIG = await r.json();
+  onFrameworkChange();
+}
+
+function $(id) { return document.getElementById(id); }
+
+function setOptions(sel, values, keep) {
+  const cur = keep ? sel.value : null;
+  const toKeep = Array.from(sel.querySelectorAll("option[data-sticky='1']"));
+  sel.innerHTML = "";
+  toKeep.forEach(o => sel.appendChild(o));
+  values.forEach(v => {
+    const o = document.createElement("option");
+    o.value = v; o.textContent = v;
+    sel.appendChild(o);
+  });
+  if (cur && Array.from(sel.options).some(o => o.value === cur)) {
+    sel.value = cur;
+  }
+}
+
+function onFrameworkChange() {
+  if (!CONFIG) return;
+  const fw = $("framework").value;
+  const profSel = $("profile");
+  const secSel = $("sector");
+
+  // Sticky sector options
+  Array.from(secSel.querySelectorAll("option")).forEach(o => {
+    if (o.value === "auto" || o.value === "none") {
+      o.setAttribute("data-sticky", "1");
+    }
+  });
+
+  if (fw === "auto") {
+    // Show the union — server falls back to 'balanced' if the picked
+    // profile/sector isn't valid for the resolved framework.
+    const profs = new Set(), secs = new Set();
+    Object.values(CONFIG.frameworks).forEach(m => {
+      m.profiles.forEach(p => profs.add(p));
+      m.sectors.forEach(s => secs.add(s));
+    });
+    setOptions(profSel, [...profs]);
+    setOptions(secSel, [...secs], true);
+    $("fw-hint").textContent =
+      "Dispatcher picks penny / growth / value by market cap.";
+  } else {
+    const meta = CONFIG.frameworks[fw];
+    setOptions(profSel, meta.profiles);
+    setOptions(secSel, meta.sectors, true);
+    $("fw-hint").textContent =
+      `${meta.label} — cap range: ${meta.cap_hint}`;
+  }
+  // Default profile = "balanced" if present
+  if (Array.from(profSel.options).some(o => o.value === "balanced")) {
+    profSel.value = "balanced";
+  }
+}
+
+function gatherPayload() {
+  return {
+    ticker:        $("ticker").value.trim().toUpperCase(),
+    framework:     $("framework").value,
+    profile:       $("profile").value,
+    sector:        $("sector").value,
+    scoring_mode:  $("scoring_mode").value,
+    engine:        $("engine").value,
+    lang:          $("lang").value,
+    news_days:     $("news_days").value ? parseInt($("news_days").value) : null,
+    filing_days:   $("filing_days").value ? parseInt($("filing_days").value) : null,
+    apply_bonuses: $("apply_bonuses").checked,
+  };
+}
+
+function statusClass(s) {
+  if (!s) return "";
+  if (s.includes("PASS") || s.includes("🟢")) return "status-pass";
+  if (s.includes("NEUTRAL") || s.includes("🟡")) return "status-neutral";
+  if (s.includes("FAIL") || s.includes("🔴")) return "status-fail";
+  return "";
+}
+
+function moneyFmt(n) {
+  if (n == null) return "n/a";
+  if (n >= 1e12) return "$" + (n / 1e12).toFixed(2) + "T";
+  if (n >= 1e9)  return "$" + (n / 1e9).toFixed(2)  + "B";
+  if (n >= 1e6)  return "$" + (n / 1e6).toFixed(2)  + "M";
+  return "$" + n.toLocaleString();
+}
+
+function renderRun(data, selectedProfile) {
+  const snap = data.snapshot || {};
+  const fwUsed = data.framework_used;
+  const profiles = data.profiles || {};
+
+  // Determine the "primary" profile to show per-filter breakdown for.
+  // If the requested profile wasn't run (e.g. invalid for resolved framework),
+  // fall back to balanced, then to the top-scoring profile.
+  const ranked = Object.entries(profiles)
+    .filter(([_, r]) => !r.error)
+    .sort((a, b) => (b[1]?.result?.score ?? -1) - (a[1]?.result?.score ?? -1));
+
+  let primaryKey = selectedProfile;
+  let fallbackNote = "";
+  if (!profiles[primaryKey] || profiles[primaryKey].error) {
+    if (profiles.balanced && !profiles.balanced.error) {
+      primaryKey = "balanced";
+      fallbackNote = `Profile "${selectedProfile}" is not valid for the ` +
+        `${fwUsed.toUpperCase()} framework — showing breakdown for ` +
+        `<b>balanced</b> instead.`;
+    } else if (ranked.length) {
+      primaryKey = ranked[0][0];
+    }
+  }
+
+  const primary = profiles[primaryKey]?.result || {};
+  const primaryResults = primary.results || [];
+
+  // Top verdict table — all profiles sorted by score
+  const profRows = ranked.map(([prof, run]) => {
+    const r = run.result || {};
+    const cls = statusClass(r.verdict || "");
+    const veto = (r.vetoes_triggered || []).length
+      ? `<span class="badge" style="border-color:var(--red);color:var(--red);">veto</span>`
+      : "";
+    const bonusPts = (r.bonuses_applied || [])
+      .reduce((s, b) => s + (b.points || 0), 0);
+    const bonus = bonusPts
+      ? `<span class="badge">+${bonusPts}</span>` : "";
+    const activeMark = prof === primaryKey
+      ? `<span class="badge auto" style="margin-left:6px;">primary</span>` : "";
+    return `<tr class="prof-row" data-prof="${prof}"
+              style="${prof === primaryKey ? 'background:var(--panel2);' : ''}
+                     cursor:pointer;">
+      <td><b>${prof}</b>${activeMark}</td>
+      <td class="${cls}">${r.verdict || "—"}</td>
+      <td class="num">${r.score ?? "—"}</td>
+      <td class="num">${r.pass_count ?? "—"}/10</td>
+      <td>${veto} ${bonus}</td>
+    </tr>`;
+  }).join("");
+
+  const errorRows = Object.entries(profiles)
+    .filter(([_, r]) => r.error)
+    .map(([prof, run]) => `<tr>
+      <td><b>${prof}</b></td>
+      <td colspan="4" class="status-fail">${run.error}</td>
+    </tr>`).join("");
+
+  // Per-filter breakdown for primary profile
+  const filterRows = primaryResults.map(r => `
+    <tr>
+      <td>${r.id}</td>
+      <td>${r.name || ""}</td>
+      <td class="${statusClass(r.status)}">${r.status || ""}</td>
+      <td class="num">${r.earned ?? ""}/${r.weight ?? ""}</td>
+      <td>${(r.note || "").replace(/</g, "&lt;")}</td>
+    </tr>
+  `).join("");
+
+  const primaryBonuses = (primary.bonuses_applied || []).map(b =>
+    `<span class="badge">+${b.points} ${b.name}</span>`).join(" ");
+  const primaryVetoes = (primary.vetoes_triggered || []).map(v =>
+    `<span class="badge" style="border-color: var(--red); color: var(--red);">
+      veto: ${v.name || v}
+     </span>`).join(" ");
+
+  return `
+    <div class="meta">
+      <div class="meta-item"><b>Ticker</b>${data.ticker}</div>
+      <div class="meta-item"><b>Name</b>${snap.name || "—"}</div>
+      <div class="meta-item"><b>Market Cap</b>${moneyFmt(snap.market_cap)}
+        <span class="badge" style="margin-left:6px;">${snap.market_cap_band}</span>
+      </div>
+      <div class="meta-item"><b>Sector</b>${snap.sector || "—"}</div>
+      <div class="meta-item"><b>Framework</b>${fwUsed.toUpperCase()}
+        <span class="badge ${data.framework_auto_detected ? "auto" : ""}">
+          ${data.framework_auto_detected ? "auto" : "forced"}
+        </span>
+      </div>
+    </div>
+
+    ${fallbackNote
+      ? `<div class="hint" style="background:var(--panel2);
+           padding:8px 10px;border-radius:6px;margin-bottom:10px;">
+           ${fallbackNote}</div>` : ""}
+
+    <div class="section-h">Verdicts across all ${fwUsed.toUpperCase()} profiles
+      <span class="hint">(click a row to swap the breakdown below)</span></div>
+    <table>
+      <thead><tr>
+        <th>Profile</th><th>Verdict</th><th>Score</th>
+        <th>Passes</th><th>Flags</th>
+      </tr></thead>
+      <tbody>${profRows}${errorRows}</tbody>
+    </table>
+
+    <div class="section-h">
+      Per-filter breakdown — <span style="color:var(--accent);">${primaryKey}</span>
+    </div>
+    ${primaryBonuses ? `<div style="margin-bottom:8px;">
+      <span class="hint">Bonuses:</span> ${primaryBonuses}</div>` : ""}
+    ${primaryVetoes ? `<div style="margin-bottom:8px;">
+      <span class="hint">Vetoes:</span> ${primaryVetoes}</div>` : ""}
+    <table>
+      <thead><tr>
+        <th>ID</th><th>Filter</th><th>Status</th>
+        <th>Earned/Weight</th><th>Note</th>
+      </tr></thead>
+      <tbody>${filterRows}</tbody>
+    </table>
+
+    <details style="margin-top:14px;">
+      <summary>Raw JSON</summary>
+      <pre class="raw">${JSON.stringify(data, null, 2)
+        .replace(/</g, "&lt;")}</pre>
+    </details>
+  `;
+}
+
+// Legacy renderers kept for completeness (not wired to any button now).
+function renderSingle(data) {
+  const snap = data.snapshot || {};
+  const inner = data.result || {};
+  const results = inner.results || [];
+  const used = data.framework_used;
+  const autoTag = data.framework_auto_detected
+    ? `<span class="badge auto">auto</span>`
+    : `<span class="badge">forced</span>`;
+
+  const rows = results.map(r => `
+    <tr>
+      <td>${r.id}</td>
+      <td>${r.name || ""}</td>
+      <td class="${statusClass(r.status)}">${r.status || ""}</td>
+      <td class="num">${r.earned ?? ""}/${r.weight ?? ""}</td>
+      <td>${(r.note || "").replace(/</g, "&lt;")}</td>
+    </tr>
+  `).join("");
+
+  const bonuses = (inner.bonuses_applied || []).map(b =>
+    `<span class="badge">+${b.points} ${b.name}</span>`
+  ).join(" ");
+
+  const vetoes = (inner.vetoes_triggered || []).map(v =>
+    `<span class="badge" style="border-color: var(--red); color: var(--red);">
+      veto: ${v.name || v}
+     </span>`).join(" ");
+
+  return `
+    <div class="meta">
+      <div class="meta-item"><b>Ticker</b>${data.ticker}</div>
+      <div class="meta-item"><b>Name</b>${snap.name || "—"}</div>
+      <div class="meta-item"><b>Market Cap</b>${moneyFmt(snap.market_cap)}
+         <span class="badge" style="margin-left:6px;">${snap.market_cap_band}</span>
+      </div>
+      <div class="meta-item"><b>Sector</b>${snap.sector || "—"}</div>
+      <div class="meta-item"><b>Framework</b>${used.toUpperCase()} ${autoTag}</div>
+      <div class="meta-item"><b>Profile</b>${inner.profile || "—"}</div>
+    </div>
+
+    <div class="verdict-block">
+      <div>
+        <div style="font-size:11px;color:var(--muted);
+                    text-transform:uppercase;letter-spacing:0.08em;">Verdict</div>
+        <div class="verdict-label">${inner.verdict || "n/a"}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right;">
+        <div style="font-size:11px;color:var(--muted);
+                    text-transform:uppercase;letter-spacing:0.08em;">Score</div>
+        <div class="score-big">
+          ${inner.score ?? "—"}<span class="score-max"> / ${inner.max_score || 100}</span>
+        </div>
+        <div class="hint">passes: ${inner.pass_count ?? "—"}</div>
+      </div>
+    </div>
+
+    ${bonuses ? `<div class="section-h">Bonuses</div>${bonuses}` : ""}
+    ${vetoes ? `<div class="section-h">Vetoes</div>${vetoes}` : ""}
+
+    <div class="section-h">Per-filter breakdown</div>
+    <table>
+      <thead><tr>
+        <th>ID</th><th>Filter</th><th>Status</th>
+        <th>Earned/Weight</th><th>Note</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <details style="margin-top:14px;">
+      <summary>Raw JSON</summary>
+      <pre class="raw">${JSON.stringify(data, null, 2)
+        .replace(/</g, "&lt;")}</pre>
+    </details>
+  `;
+}
+
+function renderProfiles(data) {
+  const snap = data.snapshot || {};
+  const fwUsed = data.framework_used;
+  const profiles = data.profiles || {};
+
+  // Sort by score desc; keep errors at bottom
+  const entries = Object.entries(profiles).sort((a, b) => {
+    const sa = a[1]?.result?.score ?? -1;
+    const sb = b[1]?.result?.score ?? -1;
+    return sb - sa;
+  });
+
+  const rows = entries.map(([prof, run]) => {
+    if (run.error) {
+      return `<tr>
+        <td><b>${prof}</b></td>
+        <td colspan="4" class="status-fail">${run.error}</td>
+      </tr>`;
+    }
+    const r = run.result || {};
+    const cls = statusClass(r.verdict || "");
+    const veto = (r.vetoes_triggered || []).length
+      ? `<span class="badge" style="border-color:var(--red);color:var(--red);">veto</span>`
+      : "";
+    const bonus = (r.bonuses_applied || []).length
+      ? `<span class="badge">+${r.bonuses_applied.reduce((s,b)=>s+(b.points||0),0)}</span>`
+      : "";
+    return `<tr>
+      <td><b>${prof}</b></td>
+      <td class="${cls}">${r.verdict || "—"}</td>
+      <td class="num">${r.score ?? "—"}</td>
+      <td class="num">${r.pass_count ?? "—"}/10</td>
+      <td>${veto} ${bonus}</td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <div class="meta">
+      <div class="meta-item"><b>Ticker</b>${data.ticker}</div>
+      <div class="meta-item"><b>Name</b>${snap.name || "—"}</div>
+      <div class="meta-item"><b>Market Cap</b>${moneyFmt(snap.market_cap)}
+        <span class="badge" style="margin-left:6px;">${snap.market_cap_band}</span>
+      </div>
+      <div class="meta-item"><b>Framework</b>${fwUsed.toUpperCase()}
+        <span class="badge ${data.framework_auto_detected ? "auto" : ""}">
+          ${data.framework_auto_detected ? "auto" : "forced"}
+        </span>
+      </div>
+    </div>
+
+    <div class="section-h">All profiles for ${fwUsed.toUpperCase()}
+      (sorted by score)</div>
+    <table>
+      <thead><tr>
+        <th>Profile</th><th>Verdict</th><th>Score</th>
+        <th>Passes</th><th>Flags</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <details style="margin-top:14px;">
+      <summary>Raw JSON</summary>
+      <pre class="raw">${JSON.stringify(data, null, 2)
+        .replace(/</g, "&lt;")}</pre>
+    </details>
+  `;
+}
+
+function renderAll(data) {
+  const snap = data.snapshot || {};
+  const suggested = data.suggested_framework;
+
+  const cards = Object.entries(data.frameworks).map(([fw, run]) => {
+    const suggestedTag = fw === suggested
+      ? `<span class="fw-suggested-tag">(suggested)</span>` : "";
+    if (run.error) {
+      return `<div class="fw-card ${fw === suggested ? "suggested" : ""}">
+        <h3>${fw}${suggestedTag}</h3>
+        <div class="err">${run.error}</div>
+      </div>`;
+    }
+    const inner = run.result || {};
+    const cls = statusClass(inner.verdict || "");
+    return `
+      <div class="fw-card ${fw === suggested ? "suggested" : ""}">
+        <h3>${fw}${suggestedTag}</h3>
+        <div class="${cls}" style="font-size:16px;font-weight:600;">
+          ${inner.verdict || "—"}
+        </div>
+        <div style="margin-top:6px;">
+          <span class="score-big" style="font-size:22px;">
+            ${inner.score ?? "—"}
+          </span>
+          <span class="score-max">/ ${inner.max_score || 100}</span>
+        </div>
+        <div class="hint">profile: ${inner.profile || "—"} ·
+          passes: ${inner.pass_count ?? "—"}</div>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="meta">
+      <div class="meta-item"><b>Ticker</b>${data.ticker}</div>
+      <div class="meta-item"><b>Name</b>${snap.name || "—"}</div>
+      <div class="meta-item"><b>Market Cap</b>${moneyFmt(snap.market_cap)}
+        <span class="badge" style="margin-left:6px;">${snap.market_cap_band}</span>
+      </div>
+      <div class="meta-item"><b>Suggested</b>${suggested.toUpperCase()}</div>
+    </div>
+
+    <div class="section-h">All frameworks</div>
+    <div class="frameworks-grid">${cards}</div>
+
+    <details style="margin-top:14px;">
+      <summary>Raw JSON</summary>
+      <pre class="raw">${JSON.stringify(data, null, 2)
+        .replace(/</g, "&lt;")}</pre>
+    </details>
+  `;
+}
+
+async function run(endpoint, renderer) {
+  const payload = gatherPayload();
+  if (!payload.ticker) {
+    $("results").innerHTML =
+      `<div class="err">Enter a ticker first.</div>`;
+    return;
+  }
+  $("results").classList.remove("results-empty");
+  $("results").innerHTML =
+    `<div><span class="spinner"></span> Running ${payload.ticker}…</div>`;
+  $("btn-run").disabled = true;
+  $("btn-all").disabled = true;
+  try {
+    const r = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await r.json();
+    if (!body.ok) {
+      $("results").innerHTML =
+        `<div class="err">${body.error || "error"}\n\n${body.trace || ""}</div>`;
+      return;
+    }
+    $("results").innerHTML = renderer(body.data);
+  } catch (e) {
+    $("results").innerHTML = `<div class="err">${e}</div>`;
+  } finally {
+    $("btn-run").disabled = false;
+    $("btn-all").disabled = false;
+  }
+}
+
+async function refreshCacheStats() {
+  try {
+    const r = await fetch("/api/cache/stats");
+    const s = await r.json();
+    if (s.entries) {
+      $("cache-stats").textContent =
+        `cache: ${s.entries} entries, oldest expires in ${s.oldest_remaining_seconds}s`;
+    } else {
+      $("cache-stats").textContent = "cache: empty";
+    }
+  } catch {}
+}
+
+async function clearCache() {
+  await fetch("/api/cache/clear", { method: "POST" });
+  refreshCacheStats();
+}
+
+// Cache the last response so row-clicks can re-render without refetching.
+let LAST_RUN = null;
+
+async function runCombined() {
+  const payload = gatherPayload();
+  if (!payload.ticker) {
+    $("results").innerHTML = `<div class="err">Enter a ticker first.</div>`;
+    return;
+  }
+  $("results").classList.remove("results-empty");
+  $("results").innerHTML =
+    `<span class="spinner"></span> Running ${payload.ticker} across all profiles…`;
+  $("btn-run").disabled = true;
+  try {
+    const r = await fetch("/api/compare-profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await r.json();
+    if (!body.ok) {
+      $("results").innerHTML =
+        `<div class="err">${body.error || "error"}\n\n${body.trace || ""}</div>`;
+      return;
+    }
+    LAST_RUN = body.data;
+    $("results").innerHTML = renderRun(body.data, payload.profile);
+    bindProfileRowClicks(payload.profile);
+  } catch (e) {
+    $("results").innerHTML = `<div class="err">${e}</div>`;
+  } finally {
+    $("btn-run").disabled = false;
+    refreshCacheStats();
+  }
+}
+
+function bindProfileRowClicks(initialProfile) {
+  document.querySelectorAll(".prof-row").forEach(tr => {
+    tr.addEventListener("click", () => {
+      const p = tr.getAttribute("data-prof");
+      if (!LAST_RUN) return;
+      $("results").innerHTML = renderRun(LAST_RUN, p);
+      bindProfileRowClicks(p);
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadConfig();
+  refreshCacheStats();
+  $("framework").addEventListener("change", onFrameworkChange);
+  $("btn-run").addEventListener("click", runCombined);
+  $("btn-clear-cache").addEventListener("click", () => {
+    LAST_RUN = null;
+    clearCache();
+  });
+  $("ticker").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); $("btn-run").click(); }
+  });
+});
+</script>
+</body>
+</html>
