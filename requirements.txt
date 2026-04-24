@@ -11,5 +11,8 @@ torch>=2.2
 # Claude-backed sentiment (optional; requires ANTHROPIC_API_KEY env var)
 anthropic>=0.34
 
+# HTML parsing for insider scraper
+beautifulsoup4>=4.12
+
 # Pandas is pulled in by yfinance but pin for safety
 pandas>=2.0

@@ -14,15 +14,18 @@ then open http://127.0.0.1:5000/
 
 from __future__ import annotations
 
+import hashlib
 import os
 import traceback
-from flask import Flask, jsonify, render_template, request
+from datetime import timedelta
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
 import penny_filter
 import growth_filter
 import value_filter
 import screener
 import cache as ticker_cache
+import insider as insider_mod
 
 # Install the TTL cache (10 min) before any evaluator runs.
 # Wraps yfinance.Ticker + the SEC/news helpers.
@@ -38,6 +41,39 @@ app = Flask(
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.jinja_env.auto_reload = True
 app.jinja_env.cache = {}
+
+app.secret_key = os.getenv("SECRET_KEY", "stk-scr-s3cr3t-xk8m3p9r2v5w1z4")
+app.permanent_session_lifetime = timedelta(days=30)
+
+_PASSWORD_HASH = hashlib.sha256(b"tradingssF_").hexdigest()
+
+
+@app.before_request
+def require_login():
+    if request.endpoint in ("login", "logout", "static"):
+        return
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        pw = request.form.get("password", "")
+        remember = bool(request.form.get("remember"))
+        if hashlib.sha256(pw.encode()).hexdigest() == _PASSWORD_HASH:
+            session.permanent = remember
+            session["authenticated"] = True
+            return redirect(url_for("index"))
+        error = "Incorrect password."
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +169,22 @@ def api_compare_profiles():
                                                **kwargs)
         return jsonify({"ok": True, "data": result,
                         "cache": ticker_cache.stats()})
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+            "trace": traceback.format_exc(),
+        }), 500
+
+
+@app.route("/api/insider/<ticker>")
+def api_insider(ticker):
+    ticker = ticker.upper().strip()
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    try:
+        result = insider_mod.get_insider_summary(ticker)
+        return jsonify({"ok": True, "data": result})
     except Exception as e:
         return jsonify({
             "ok": False,

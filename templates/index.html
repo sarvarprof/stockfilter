@@ -176,6 +176,43 @@
   .fw-suggested-tag {
     font-size: 10px; color: var(--accent); margin-left: 6px;
   }
+
+  /* Insider panel */
+  .insider-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  @media (max-width: 700px) { .insider-grid { grid-template-columns: 1fr; } }
+  .insider-period {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .insider-period h4 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+  }
+  .ins-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .ins-label { font-size: 12px; width: 36px; flex-shrink: 0; }
+  .ins-bar-wrap {
+    flex: 1; height: 8px; background: var(--border); border-radius: 4px;
+    overflow: hidden;
+  }
+  .ins-bar { height: 100%; border-radius: 4px; transition: width 0.4s; }
+  .ins-bar.buy  { background: var(--green); }
+  .ins-bar.sell { background: var(--red); }
+  .ins-amt { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .ins-count { font-size: 10px; color: var(--muted); }
+  .insider-loading { color: var(--muted); font-size: 12px; }
+  .ins-signal {
+    margin-top: 8px; font-size: 11px; font-weight: 600; text-align: center;
+  }
+  .ins-signal.bullish { color: var(--green); }
+  .ins-signal.bearish { color: var(--red); }
+  .ins-signal.neutral { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -492,12 +529,94 @@ function renderRun(data, selectedProfile) {
       <tbody>${filterRows}</tbody>
     </table>
 
+    <div class="section-h">Insider activity
+      <span class="hint" style="text-transform:none;letter-spacing:0;">
+        (source: dataroma.com)</span></div>
+    <div id="insider-slot">
+      <div class="insider-loading">
+        <span class="spinner"></span> Fetching insider trades…
+      </div>
+    </div>
+
     <details style="margin-top:14px;">
       <summary>Raw JSON</summary>
       <pre class="raw">${JSON.stringify(data, null, 2)
         .replace(/</g, "&lt;")}</pre>
     </details>
   `;
+}
+
+// ── Insider panel ────────────────────────────────────────────────────────────
+
+function moneyShort(n) {
+  if (!n) return "$0";
+  if (n >= 1e9) return "$" + (n / 1e9).toFixed(2) + "B";
+  if (n >= 1e6) return "$" + (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return "$" + (n / 1e3).toFixed(0) + "K";
+  return "$" + n;
+}
+
+function renderInsiderPeriod(label, data) {
+  const buyCt  = data.buys.count  || 0;
+  const sellCt = data.sells.count || 0;
+  const buyAmt  = data.buys.amount  || 0;
+  const sellAmt = data.sells.amount || 0;
+  const maxAmt  = Math.max(buyAmt, sellAmt, 1);
+  const buyPct  = Math.round((buyAmt  / maxAmt) * 100);
+  const sellPct = Math.round((sellAmt / maxAmt) * 100);
+
+  let signal = "", sigClass = "neutral";
+  if (buyAmt > 0 && sellAmt === 0)         { signal = "Bullish"; sigClass = "bullish"; }
+  else if (sellAmt > 0 && buyAmt === 0)    { signal = "Bearish"; sigClass = "bearish"; }
+  else if (buyAmt > sellAmt * 1.5)         { signal = "Bullish lean"; sigClass = "bullish"; }
+  else if (sellAmt > buyAmt * 1.5)         { signal = "Bearish lean"; sigClass = "bearish"; }
+  else if (buyAmt === 0 && sellAmt === 0)  { signal = "No activity"; sigClass = "neutral"; }
+  else                                      { signal = "Mixed"; sigClass = "neutral"; }
+
+  return `
+    <div class="insider-period">
+      <h4>${label}</h4>
+      <div class="ins-row">
+        <span class="ins-label" style="color:var(--green);">Buys</span>
+        <div class="ins-bar-wrap">
+          <div class="ins-bar buy" style="width:${buyPct}%"></div>
+        </div>
+        <span class="ins-amt">${moneyShort(buyAmt)}</span>
+        <span class="ins-count">(${buyCt})</span>
+      </div>
+      <div class="ins-row">
+        <span class="ins-label" style="color:var(--red);">Sells</span>
+        <div class="ins-bar-wrap">
+          <div class="ins-bar sell" style="width:${sellPct}%"></div>
+        </div>
+        <span class="ins-amt">${moneyShort(sellAmt)}</span>
+        <span class="ins-count">(${sellCt})</span>
+      </div>
+      <div class="ins-signal ${sigClass}">${signal}</div>
+    </div>`;
+}
+
+function renderInsider(data) {
+  if (!data) return `<div class="insider-loading">No insider data.</div>`;
+  const errors = data.errors || [];
+  const periods = [
+    ["Weekly",    data.weekly],
+    ["Monthly",   data.monthly],
+    ["Quarterly", data.quarterly],
+  ].filter(([, d]) => d);
+
+  return `
+    <div class="insider-grid">
+      ${periods.map(([lbl, d]) => renderInsiderPeriod(lbl, d)).join("")}
+    </div>
+    ${errors.length
+      ? `<div class="hint" style="color:var(--red);">${errors.join(" | ")}</div>`
+      : ""}`;
+}
+
+function injectInsider(data) {
+  const el = document.getElementById("insider-slot");
+  if (el) el.innerHTML = renderInsider(data);
 }
 
 // Legacy renderers kept for completeness (not wired to any button now).
@@ -763,13 +882,20 @@ async function runCombined() {
   $("results").innerHTML =
     `<span class="spinner"></span> Running ${payload.ticker} across all profiles…`;
   $("btn-run").disabled = true;
+
+  // Fire screener + insider fetch in parallel
+  const screenerPromise = fetch("/api/compare-profiles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then(r => r.json());
+
+  const insiderPromise = fetch(`/api/insider/${payload.ticker}`)
+    .then(r => r.json())
+    .catch(() => null);
+
   try {
-    const r = await fetch("/api/compare-profiles", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await r.json();
+    const body = await screenerPromise;
     if (!body.ok) {
       $("results").innerHTML =
         `<div class="err">${body.error || "error"}\n\n${body.trace || ""}</div>`;
@@ -778,6 +904,11 @@ async function runCombined() {
     LAST_RUN = body.data;
     $("results").innerHTML = renderRun(body.data, payload.profile);
     bindProfileRowClicks(payload.profile);
+
+    // Insider data resolves independently — inject when ready
+    insiderPromise.then(ins => {
+      injectInsider(ins && ins.ok ? ins.data : null);
+    });
   } catch (e) {
     $("results").innerHTML = `<div class="err">${e}</div>`;
   } finally {
