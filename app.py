@@ -177,6 +177,17 @@ def api_compare_profiles():
         }), 500
 
 
+@app.route("/api/superinvestors/<ticker>")
+def api_superinvestors(ticker):
+    ticker = ticker.upper().strip()
+    try:
+        result = insider_mod.get_superinvestors(ticker)
+        return jsonify({"ok": True, "data": result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e),
+                        "trace": traceback.format_exc()}), 500
+
+
 @app.route("/api/insider/<ticker>")
 def api_insider(ticker):
     ticker = ticker.upper().strip()

@@ -183,10 +183,133 @@ def get_insider_summary(ticker: str,
     return out
 
 
+# ── Superinvestor ownership table ────────────────────────────────────────────
+
+def get_superinvestors(ticker: str, use_cache: bool = True) -> Dict[str, Any]:
+    """
+    Scrape the superinvestor ownership table from dataroma.com/m/stock.php.
+
+    Returns:
+        {
+            "ticker": "AAPL",
+            "holders": [
+                {
+                    "manager": "Warren Buffett - Berkshire Hathaway",
+                    "pct_portfolio": 22.60,        # % of manager's portfolio
+                    "activity": "Reduce 4.32%",    # recent activity text
+                    "activity_type": "sell",       # "buy" | "sell" | "hold"
+                    "value": 61961735000,           # USD value of holding
+                },
+                ...
+            ],
+            "summary": {
+                "total_bought_value": int,   # sum of value for buy/add rows
+                "total_sold_value":   int,   # sum of value for sell/reduce rows
+                "buy_count":  int,
+                "sell_count": int,
+                "hold_count": int,
+            },
+            "error": None | str,
+        }
+    """
+    ticker = ticker.upper().strip()
+    cache_key = f"superinvestors:{ticker}"
+
+    if use_cache:
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+    url = f"https://www.dataroma.com/m/stock.php?sym={ticker}"
+    try:
+        html = _fetch_html(url)
+    except Exception as exc:
+        result = {"ticker": ticker, "holders": [], "summary": {}, "error": str(exc)}
+        return result
+
+    soup = BeautifulSoup(html, "html.parser")
+    table = soup.find("table", {"id": "grid"})
+    if not table:
+        result = {"ticker": ticker, "holders": [], "summary": {},
+                  "error": "Ownership table not found"}
+        return result
+
+    holders = []
+    for row in table.find("tbody").find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 6:
+            continue
+
+        # cells[0] = hist link (skip)
+        # cells[1] = firm / manager name
+        # cells[2] = % of portfolio
+        # cells[3] = recent activity (class "buy"/"sell")
+        # cells[4] = shares
+        # cells[5] = value ($)
+        manager  = cells[1].get_text(strip=True)
+        pct_text = cells[2].get_text(strip=True)
+        act_cell = cells[3]
+        act_text = act_cell.get_text(strip=True)
+        act_cls  = " ".join(act_cell.get("class", [])).lower()
+        val_text = cells[5].get_text(strip=True)
+
+        try:
+            pct = float(pct_text)
+        except ValueError:
+            pct = 0.0
+
+        try:
+            value = int(val_text.replace(",", ""))
+        except ValueError:
+            value = 0
+
+        if "buy" in act_cls:
+            atype = "buy"
+        elif "sell" in act_cls:
+            atype = "sell"
+        else:
+            atype = "hold"
+
+        # Blank activity text means no change this quarter
+        if not act_text:
+            act_text = "No change"
+            atype = "hold"
+
+        holders.append({
+            "manager":       manager,
+            "pct_portfolio": pct,
+            "activity":      act_text,
+            "activity_type": atype,
+            "value":         value,
+        })
+
+    # Summary row
+    bought_val = sum(h["value"] for h in holders if h["activity_type"] == "buy")
+    sold_val   = sum(h["value"] for h in holders if h["activity_type"] == "sell")
+    summary = {
+        "total_bought_value": bought_val,
+        "total_sold_value":   sold_val,
+        "buy_count":  sum(1 for h in holders if h["activity_type"] == "buy"),
+        "sell_count": sum(1 for h in holders if h["activity_type"] == "sell"),
+        "hold_count": sum(1 for h in holders if h["activity_type"] == "hold"),
+    }
+
+    result = {"ticker": ticker, "holders": holders,
+              "summary": summary, "error": None}
+
+    if use_cache:
+        _cache_put(cache_key, result)
+
+    return result
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import sys
     import json
     ticker = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
-    result = get_insider_summary(ticker, use_cache=False)
-    print(json.dumps(result, indent=2))
+    mode   = sys.argv[2] if len(sys.argv) > 2 else "insider"
+    if mode == "super":
+        print(json.dumps(get_superinvestors(ticker, use_cache=False), indent=2))
+    else:
+        print(json.dumps(get_insider_summary(ticker, use_cache=False), indent=2))

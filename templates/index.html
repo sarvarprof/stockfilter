@@ -213,6 +213,18 @@
   .ins-signal.bullish { color: var(--green); }
   .ins-signal.bearish { color: var(--red); }
   .ins-signal.neutral { color: var(--muted); }
+
+  /* Superinvestors table */
+  .super-wrap { overflow-x: auto; margin-top: 4px; }
+  .super-wrap table { width: 100%; min-width: 480px; }
+  .super-wrap td, .super-wrap th { padding: 7px 10px; }
+  .super-wrap tr.buy-row  td:nth-child(3) { color: var(--green); }
+  .super-wrap tr.sell-row td:nth-child(3) { color: var(--red); }
+  .super-wrap tr.hold-row td:nth-child(3) { color: var(--muted); }
+  .super-wrap tfoot tr td { border-top: 2px solid var(--border);
+    font-weight: 600; font-size: 12px; }
+  .super-wrap tfoot .bought { color: var(--green); }
+  .super-wrap tfoot .sold   { color: var(--red); }
 </style>
 </head>
 <body>
@@ -538,6 +550,15 @@ function renderRun(data, selectedProfile) {
       </div>
     </div>
 
+    <div class="section-h">Superinvestor ownership
+      <span class="hint" style="text-transform:none;letter-spacing:0;">
+        (source: dataroma.com)</span></div>
+    <div id="super-slot">
+      <div class="insider-loading">
+        <span class="spinner"></span> Fetching superinvestor holdings…
+      </div>
+    </div>
+
     <details style="margin-top:14px;">
       <summary>Raw JSON</summary>
       <pre class="raw">${JSON.stringify(data, null, 2)
@@ -617,6 +638,63 @@ function renderInsider(data) {
 function injectInsider(data) {
   const el = document.getElementById("insider-slot");
   if (el) el.innerHTML = renderInsider(data);
+}
+
+// ── Superinvestors table ─────────────────────────────────────────────────────
+
+function renderSuperinvestors(data) {
+  if (!data || data.error) {
+    return `<div class="hint" style="color:var(--red);">
+      ${data ? data.error : "No data"}</div>`;
+  }
+  const holders = data.holders || [];
+  if (!holders.length) return `<div class="hint">No superinvestor holdings found.</div>`;
+
+  const rows = holders.map(h => {
+    const cls = h.activity_type === "buy" ? "buy-row"
+              : h.activity_type === "sell" ? "sell-row" : "hold-row";
+    return `<tr class="${cls}">
+      <td>${h.manager}</td>
+      <td class="num">${h.pct_portfolio.toFixed(2)}%</td>
+      <td>${h.activity}</td>
+      <td class="num">${moneyFmt(h.value)}</td>
+    </tr>`;
+  }).join("");
+
+  const s = data.summary || {};
+  const bought = s.total_bought_value || 0;
+  const sold   = s.total_sold_value   || 0;
+  const buyCt  = s.buy_count  || 0;
+  const sellCt = s.sell_count || 0;
+  const holdCt = s.hold_count || 0;
+
+  return `
+    <div class="super-wrap">
+      <table>
+        <thead><tr>
+          <th>Portfolio Manager</th>
+          <th>% of Portfolio</th>
+          <th>Recent Activity</th>
+          <th>Value</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td>Total — ${buyCt} buying, ${sellCt} reducing, ${holdCt} no change</td>
+          <td></td>
+          <td>
+            <span class="bought">▲ Bought ${moneyFmt(bought)}</span>
+            &nbsp;&nbsp;
+            <span class="sold">▼ Sold ${moneyFmt(sold)}</span>
+          </td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+function injectSuperinvestors(data) {
+  const el = document.getElementById("super-slot");
+  if (el) el.innerHTML = renderSuperinvestors(data);
 }
 
 // Legacy renderers kept for completeness (not wired to any button now).
@@ -894,6 +972,10 @@ async function runCombined() {
     .then(r => r.json())
     .catch(() => null);
 
+  const superPromise = fetch(`/api/superinvestors/${payload.ticker}`)
+    .then(r => r.json())
+    .catch(() => null);
+
   try {
     const body = await screenerPromise;
     if (!body.ok) {
@@ -905,9 +987,12 @@ async function runCombined() {
     $("results").innerHTML = renderRun(body.data, payload.profile);
     bindProfileRowClicks(payload.profile);
 
-    // Insider data resolves independently — inject when ready
+    // Insider + superinvestor data resolve independently — inject when ready
     insiderPromise.then(ins => {
       injectInsider(ins && ins.ok ? ins.data : null);
+    });
+    superPromise.then(sup => {
+      injectSuperinvestors(sup && sup.ok ? sup.data : null);
     });
   } catch (e) {
     $("results").innerHTML = `<div class="err">${e}</div>`;
