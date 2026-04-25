@@ -218,33 +218,60 @@ def g7_sales_growth(ticker):
     """F7: Consistent YoY/QoQ revenue growth."""
     t = yf.Ticker(ticker)
 
-    # Annual (YoY)
+    # Annual (YoY) — EDGAR primary (audited, 5+ years)
     yoy_ok = None
     yoy_note = ""
     try:
-        fin = t.financials
-        if fin is not None and not fin.empty:
-            for idx in fin.index:
-                if "total revenue" in str(idx).lower():
-                    vals = fin.loc[idx].dropna().tolist()
-                    # financials are newest-first
-                    if len(vals) >= 2:
-                        growths = []
-                        for i in range(len(vals) - 1):
-                            if vals[i + 1] > 0:
-                                growths.append(
-                                    (vals[i] - vals[i + 1]) / vals[i + 1])
-                        if growths:
-                            all_pos = all(g > 0 for g in growths[:2])
-                            yoy_ok = all_pos
-                            yoy_note = ("YoY: " +
-                                        ", ".join(f"{g*100:+.0f}%"
-                                                  for g in growths[:2]))
-                    break
+        import edgar_bridge as _eb
+        rev_s = _eb.get_revenue_series(ticker)   # ascending: oldest → newest
+        if rev_s is not None and len(rev_s) >= 2:
+            vals = list(rev_s)  # already ascending
+            growths = []
+            for i in range(len(vals) - 1, 0, -1):  # newest first
+                if vals[i - 1] > 0:
+                    growths.append((vals[i] - vals[i - 1]) / vals[i - 1])
+            if growths:
+                all_pos = all(g > 0 for g in growths[:2])
+                yoy_ok = all_pos
+                # 3-year CAGR if available
+                cagr_note = ""
+                if len(vals) >= 4:
+                    n = min(3, len(vals) - 1)
+                    if vals[-(n + 1)] > 0:
+                        cagr = (vals[-1] / vals[-(n + 1)]) ** (1 / n) - 1
+                        cagr_note = f", {n}y CAGR {cagr*100:+.0f}%"
+                yoy_note = ("YoY (EDGAR): " +
+                            ", ".join(f"{g*100:+.0f}%" for g in growths[:2]) +
+                            cagr_note)
     except Exception as e:
-        yoy_note = f"YoY err: {e}"
+        yoy_note = f"EDGAR YoY err: {e}"
 
-    # Quarterly (QoQ)
+    # yfinance annual fallback
+    if yoy_ok is None:
+        try:
+            fin = t.financials
+            if fin is not None and not fin.empty:
+                for idx in fin.index:
+                    if "total revenue" in str(idx).lower():
+                        vals = fin.loc[idx].dropna().tolist()  # newest-first
+                        if len(vals) >= 2:
+                            growths = []
+                            for i in range(len(vals) - 1):
+                                if vals[i + 1] > 0:
+                                    growths.append(
+                                        (vals[i] - vals[i + 1]) / vals[i + 1])
+                            if growths:
+                                all_pos = all(g > 0 for g in growths[:2])
+                                yoy_ok = all_pos
+                                yoy_note = ("YoY: " +
+                                            ", ".join(f"{g*100:+.0f}%"
+                                                      for g in growths[:2]))
+                        break
+        except Exception as e:
+            if not yoy_note:
+                yoy_note = f"YoY err: {e}"
+
+    # Quarterly (QoQ) — yfinance (near-term momentum)
     qoq_ok = None
     qoq_note = ""
     try:

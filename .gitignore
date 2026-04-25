@@ -19,7 +19,14 @@ Thumbs.db
 # Secrets / local config
 .env
 .env.*
+!.env.example
 *.local
+
+# Persistent SQLite cache
+cache/
+*.db
+*.db-wal
+*.db-shm
 
 # Source framework text files (kept locally, not pushed)
 penny.txt

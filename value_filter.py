@@ -269,7 +269,47 @@ BONUS_RULES = [
 # ============================================================
 
 def v1_revenue_momentum(ticker):
-    """F1: Last 2 quarters revenue growing; YoY 10%+ = PASS."""
+    """F1: Annual YoY revenue 10%+ = PASS (EDGAR primary); quarterly trend as supplement."""
+    # EDGAR annual YoY (audited, most reliable for large-caps)
+    annual_yoy = None
+    annual_note = ""
+    try:
+        import edgar_bridge as _eb
+        rev_s = _eb.get_revenue_series(ticker)  # ascending: oldest → newest
+        if rev_s is not None and len(rev_s) >= 2:
+            old = float(rev_s.iloc[-2])
+            new = float(rev_s.iloc[-1])
+            if old > 0:
+                annual_yoy = (new - old) / old
+                annual_note = f"Annual YoY {annual_yoy*100:+.1f}% (EDGAR)"
+    except Exception:
+        pass
+
+    if annual_yoy is not None:
+        # QoQ trend as supplemental signal
+        recent_trend = "unknown"
+        try:
+            qf = yf.Ticker(ticker).quarterly_financials
+            if qf is not None and not qf.empty:
+                for idx in qf.index:
+                    if "total revenue" in str(idx).lower():
+                        vals = qf.loc[idx].dropna().tolist()
+                        if len(vals) >= 3:
+                            recent_trend = "up" if vals[0] > vals[1] > vals[2] else (
+                                           "flat" if vals[0] >= vals[2] else "down")
+                        break
+        except Exception:
+            pass
+        note = annual_note
+        if recent_trend != "unknown":
+            note += f", QoQ trend: {recent_trend}"
+        if annual_yoy >= 0.10:
+            return True, note
+        if annual_yoy >= 0:
+            return None, f"{note} (0-10%)"
+        return False, f"{note} declining"
+
+    # Fallback: quarterly only
     try:
         qf = yf.Ticker(ticker).quarterly_financials
         if qf is None or qf.empty:
@@ -279,11 +319,9 @@ def v1_revenue_momentum(ticker):
                 vals = qf.loc[idx].dropna().tolist()
                 if len(vals) < 4:
                     return None, "Insufficient quarters"
-                # vals newest-first. Latest YoY = vals[0] vs vals[4 if present else last]
                 yoy = None
                 if len(vals) >= 5:
                     yoy = (vals[0] - vals[4]) / vals[4] if vals[4] else None
-                # 2-quarter trajectory
                 recent_trend = "up" if vals[0] > vals[1] > vals[2] else (
                                "flat" if vals[0] >= vals[2] else "down")
                 if yoy is not None and yoy >= 0.10:
@@ -292,10 +330,9 @@ def v1_revenue_momentum(ticker):
                     return None, f"YoY {yoy*100:+.1f}% (0-10%), trend: {recent_trend}"
                 if yoy is not None:
                     return False, f"YoY {yoy*100:+.1f}% declining"
-                # Fallback: trajectory only
                 if recent_trend == "up":
-                    return True, f"2Q uptrend (no YoY data)"
-                return None, f"Flat/mixed trend"
+                    return True, "2Q uptrend (no YoY data)"
+                return None, "Flat/mixed trend"
         return None, "No revenue line"
     except Exception as e:
         return None, f"err: {e}"
@@ -548,16 +585,58 @@ def v7_relative_strength(ticker):
 
 
 def v8_balance_sheet(ticker, info):
-    """F8: Cash > Debt OR D/E below sector, positive OCF."""
+    """F8: Cash > Debt OR D/E below sector, positive OCF. EDGAR primary."""
+    score = 0
+    total = 0
+    notes = []
+    src_tag = ""
+
+    try:
+        # EDGAR primary — properly-summed LTD+STD, audited OCF, derived D/E
+        import edgar_bridge as _eb
+        cdo = _eb.get_cash_debt_ocf(ticker)
+        if cdo is not None:
+            total_cash = cdo["cash"]
+            total_debt = cdo["total_debt"]
+            ocf        = cdo["ocf"]
+            d_to_e     = cdo["d_to_e"]   # fraction (e.g. 0.45), or None
+            src_tag = " (EDGAR)"
+
+            if total_cash or total_debt:
+                total += 1
+                notes.append(f"cash ${total_cash/1e6:.0f}M vs debt ${total_debt/1e6:.0f}M{src_tag}")
+                if total_cash > total_debt:
+                    score += 1
+
+            if d_to_e is not None:
+                total += 1
+                notes.append(f"D/E={d_to_e*100:.0f}%{src_tag}")
+                if d_to_e < 1.0:   # fraction: 1.0 = 100% = threshold
+                    score += 1
+
+            if ocf is not None:
+                total += 1
+                notes.append(f"OCF=${ocf/1e6:.0f}M{src_tag}")
+                if ocf > 0:
+                    score += 1
+
+            if total > 0:
+                pct = score / total
+                note = "; ".join(notes) + f"  ({score}/{total})"
+                if pct >= 0.67:
+                    return True, note
+                if pct >= 0.34:
+                    return None, note
+                return False, note
+    except Exception:
+        pass
+
+    # yfinance fallback
     try:
         total_cash = info.get("totalCash") or 0
         total_debt = info.get("totalDebt") or 0
         d2e = info.get("debtToEquity")
         ocf = info.get("operatingCashflow") or 0
-
-        score = 0
-        total = 0
-        notes = []
 
         if total_cash or total_debt:
             total += 1
@@ -568,7 +647,6 @@ def v8_balance_sheet(ticker, info):
         if d2e is not None:
             total += 1
             notes.append(f"D/E={d2e:.1f}")
-            # Generic threshold; sector overlay handles finance/REIT differences
             if d2e < 100:  # yfinance reports as percent
                 score += 1
 

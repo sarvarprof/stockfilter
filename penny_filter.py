@@ -300,9 +300,18 @@ def _latest_bs(df, keys):
 # FILTERS F1–F10
 # ============================================================
 
-def f1_float(info):
+def f1_float(info, ticker=None):
     """F1: Float < 50M"""
     flt = info.get("floatShares") or info.get("sharesOutstanding")
+    if not flt and ticker:
+        # EDGAR fallback: use most recent diluted shares
+        try:
+            import edgar_bridge as _eb
+            shares_s = _eb.get_shares_series(ticker)
+            if shares_s is not None and len(shares_s):
+                flt = float(shares_s.iloc[-1])
+        except Exception:
+            pass
     if not flt:
         return None, "Float unknown"
     ok = flt < 50_000_000
@@ -414,9 +423,36 @@ def f7_spike_history(hist):
 # ---------- F8 sub-checks ----------
 
 def _cash_runway(ticker):
+    # Try EDGAR first — audited, multi-year, reliable for micro-caps
+    try:
+        import edgar_bridge as _eb
+        cdo = _eb.get_cash_debt_ocf(ticker)
+        if cdo is not None:
+            cash = cdo["cash"]
+            ocf  = cdo["ocf"]
+            annual_burn = None
+            if ocf < 0:
+                annual_burn = -ocf
+            else:
+                # cash-flow positive — also check FCF series trend
+                fcf_s = _eb.get_fcf_series(ticker)
+                if fcf_s is not None and len(fcf_s) and fcf_s.iloc[-1] < 0:
+                    annual_burn = -float(fcf_s.iloc[-1])
+            if cash is None or cash == 0:
+                pass  # fall through to yfinance
+            elif annual_burn is None or annual_burn <= 0:
+                return True, f"Cash ${cash/1e6:.1f}M; cash-flow positive (EDGAR)"
+            else:
+                years = cash / annual_burn
+                return years >= 2.0, (f"Cash ${cash/1e6:.1f}M / burn "
+                                      f"${annual_burn/1e6:.1f}M/yr = {years:.2f}y (EDGAR)")
+    except Exception:
+        pass
+
+    # yfinance fallback
     t = yf.Ticker(ticker)
-    bs = getattr(t, "balance_sheet", None)
-    cf = getattr(t, "cashflow", None)
+    bs  = getattr(t, "balance_sheet", None)
+    cf  = getattr(t, "cashflow", None)
     qcf = getattr(t, "quarterly_cashflow", None)
 
     cash = _latest_bs(bs, [
@@ -425,9 +461,9 @@ def _cash_runway(ticker):
         "Cash",
     ])
     ocf_a = _latest_bs(cf, ["Operating Cash Flow",
-                            "Total Cash From Operating Activities"])
-    ocf_q = _latest_bs(qcf, ["Operating Cash Flow",
                              "Total Cash From Operating Activities"])
+    ocf_q = _latest_bs(qcf, ["Operating Cash Flow",
+                              "Total Cash From Operating Activities"])
 
     annual_burn = None
     if ocf_a is not None and ocf_a < 0:
@@ -705,19 +741,35 @@ def _clean_structure(ticker, days=180):
     rs = [f for f in filings
           if re.search(r"reverse|consolidation",
                        (f.get("desc") or "").lower())]
+
+    # EDGAR shares series: multi-year dilution CAGR (more reliable than yfinance BS row)
     share_growth = None
+    share_src = ""
     try:
-        bs = yf.Ticker(ticker).balance_sheet
-        if bs is not None and not bs.empty:
-            for idx in bs.index:
-                if "share" in str(idx).lower() and "issued" in str(idx).lower():
-                    vals = bs.loc[idx].dropna()
-                    if len(vals) >= 2:
-                        share_growth = (float(vals.iloc[0]) /
-                                        float(vals.iloc[1]) - 1)
-                    break
+        import edgar_bridge as _eb
+        shares_s = _eb.get_shares_series(ticker)
+        if shares_s is not None and len(shares_s) >= 2:
+            old = float(shares_s.iloc[-2])
+            new = float(shares_s.iloc[-1])
+            if old > 0:
+                share_growth = new / old - 1
+                share_src = " (EDGAR)"
     except Exception:
         pass
+
+    if share_growth is None:
+        try:
+            bs = yf.Ticker(ticker).balance_sheet
+            if bs is not None and not bs.empty:
+                for idx in bs.index:
+                    if "share" in str(idx).lower() and "issued" in str(idx).lower():
+                        vals = bs.loc[idx].dropna()
+                        if len(vals) >= 2:
+                            share_growth = (float(vals.iloc[0]) /
+                                            float(vals.iloc[1]) - 1)
+                        break
+        except Exception:
+            pass
 
     notes, ok = [], True
     if bad:
@@ -727,7 +779,7 @@ def _clean_structure(ticker, days=180):
         ok = False
         notes.append("RS signal")
     if share_growth is not None:
-        notes.append(f"shares YoY: {share_growth*100:+.1f}%")
+        notes.append(f"shares YoY: {share_growth*100:+.1f}%{share_src}")
         if share_growth > 0.25:
             ok = False
     if not notes:
@@ -1177,7 +1229,7 @@ def evaluate(ticker,
                                          for k, v in weights.items()))
 
     filters = [
-        ("F1",  "F1  Float < 50M",          lambda: f1_float(info)),
+        ("F1",  "F1  Float < 50M",          lambda: f1_float(info, ticker)),
         ("F2",  "F2  Market Cap < $50M",    lambda: f2_market_cap(info)),
         ("F3",  "F3  US-Domiciled",         lambda: f3_us_domiciled(info)),
         ("F4",  "F4  No RS (2 weeks)",      lambda: f4_reverse_split(ticker, 60)),

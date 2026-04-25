@@ -8,8 +8,9 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/stock-screener
 Environment="PATH=/opt/stock-screener/venv/bin"
-# Uncomment if you want Claude-backed sentiment:
-# Environment="ANTHROPIC_API_KEY=sk-ant-..."
+# Secrets live in /opt/stock-screener/.env (chmod 600, owner www-data).
+# Loaded both by python-dotenv at app startup and by systemd here.
+EnvironmentFile=-/opt/stock-screener/.env
 ExecStart=/opt/stock-screener/venv/bin/gunicorn -c gunicorn.conf.py app:app
 Restart=on-failure
 RestartSec=5

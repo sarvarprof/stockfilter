@@ -214,6 +214,38 @@
   .ins-signal.bearish { color: var(--red); }
   .ins-signal.neutral { color: var(--muted); }
 
+  /* Valuation panel */
+  .val-card {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+  }
+  .val-header {
+    display: flex; align-items: flex-start; gap: 16px;
+    flex-wrap: wrap; margin-bottom: 10px;
+  }
+  .val-consensus { font-size: 22px; font-weight: 700; }
+  .val-counts    { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .val-asmp      { font-size: 11px; color: var(--muted); line-height: 1.7; }
+  .val-implied   { font-size: 12px; margin-top: 4px; }
+  .val-roic      { font-size: 11px; margin-top: 3px; }
+  .mc-range {
+    position: relative; height: 8px;
+    background: var(--border); border-radius: 4px;
+    min-width: 90px; display: inline-block; width: 100%;
+  }
+  .mc-iqr   { position: absolute; height: 100%; background: var(--accent);
+              opacity: 0.35; border-radius: 4px; }
+  .mc-median, .mc-price {
+    position: absolute; width: 2px; height: 100%; border-radius: 2px;
+  }
+  .mc-median { background: var(--accent); }
+  .mc-price  { background: var(--red); }
+  .mc-lbl    { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .val-loading { color: var(--muted); font-size: 12px; }
+
   /* Superinvestors table */
   .super-wrap { overflow-x: auto; margin-top: 4px; }
   .super-wrap table { width: 100%; min-width: 480px; }
@@ -516,6 +548,13 @@ function renderRun(data, selectedProfile) {
            padding:8px 10px;border-radius:6px;margin-bottom:10px;">
            ${fallbackNote}</div>` : ""}
 
+    <div class="section-h">Intrinsic Value
+      <span class="hint" style="text-transform:none;letter-spacing:0;">
+        (DCF · Buffett · Graham · EV/EBITDA · Monte Carlo)</span></div>
+    <div id="valuation-slot">
+      <div class="val-loading"><span class="spinner"></span> Running valuation models…</div>
+    </div>
+
     <div class="section-h">Verdicts across all ${fwUsed.toUpperCase()} profiles
       <span class="hint">(click a row to swap the breakdown below)</span></div>
     <table>
@@ -565,6 +604,262 @@ function renderRun(data, selectedProfile) {
         .replace(/</g, "&lt;")}</pre>
     </details>
   `;
+}
+
+// ── Valuation panel ──────────────────────────────────────────────────────────
+
+function verdictColor(v) {
+  if (!v || v === "N/A") return "var(--muted)";
+  if (v === "Undervalued" || v === "Slight Upside") return "var(--green)";
+  if (v === "Overvalued"  || v === "Slight Downside") return "var(--red)";
+  return "var(--yellow)";
+}
+
+function pctVsPrice(fair, price) {
+  if (fair == null || !price) return "";
+  const d = ((fair - price) / price) * 100;
+  return (d >= 0 ? "+" : "") + d.toFixed(1) + "%";
+}
+
+function renderValuation(data) {
+  if (!data || data.error) {
+    return `<div class="val-loading" style="color:var(--red);">
+      ${data ? data.error : "Valuation unavailable"}</div>`;
+  }
+  const p      = data.current_price;
+  const asmp   = data.assumptions || {};
+  const macro  = data.macro || {};
+  const counts = data.consensus_counts || {};
+  const cc     = verdictColor(data.consensus);
+  const ig     = data.implied_growth;
+
+  // ── Consensus header ──────────────────────────────────────────────────
+  const igHtml = ig != null
+    ? `<div class="val-implied">Reverse-DCF implied growth:
+         <b style="color:${ig > asmp.growth_blended ? 'var(--yellow)' : 'var(--green)'}">
+           ${(ig*100).toFixed(1)}%</b>
+         <span style="color:var(--muted);font-size:10px;">
+           (blended ${(asmp.growth_blended*100).toFixed(1)}%)</span></div>` : "";
+
+  const roicSignalColor = asmp.roic != null && asmp.cost_of_equity != null
+    ? (asmp.roic > asmp.cost_of_equity ? "var(--green)" : "var(--red)") : "var(--muted)";
+  const roicHtml = asmp.roic_signal
+    ? `<div class="val-roic">ROIC ${asmp.roic != null ? (asmp.roic*100).toFixed(1)+"% — " : ""}
+         <span style="color:${roicSignalColor}">${asmp.roic_signal}</span></div>` : "";
+
+  const fcfHtml = asmp.fcf_normalized
+    ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;">
+         FCF (3y avg) ${moneyShort(asmp.fcf_normalized)}</div>` : "";
+
+  // Financial subsector alert
+  const subHtml = (data.financial_subsector && data.financial_subsector !== "NOT_FINANCIAL")
+    ? `<div style="margin-top:6px;font-size:11px;padding:4px 8px;
+         background:rgba(241,196,15,0.12);border:1px solid rgba(241,196,15,0.3);
+         border-radius:4px;color:var(--yellow);">
+         ⚑ Financial firm: ${data.financial_subsector}
+         ${data.financial_reliability ? ` — reliability: ${data.financial_reliability}` : ""}
+       </div>` : "";
+
+  // ── Macro + WACC breakdown ─────────────────────────────────────────────
+  const macroHtml = `
+    <div class="val-asmp">
+      Rf <b>${macro.rf != null ? (macro.rf*100).toFixed(2)+"%" : "—"}</b>
+        <span style="color:var(--muted);font-size:10px;">(${macro.source_rf || ""})</span>
+      &nbsp;·&nbsp;ERP <b>${macro.erp != null ? (macro.erp*100).toFixed(2)+"%" : "—"}</b>
+        <span style="color:var(--muted);font-size:10px;">(${macro.source_erp || ""})</span><br>
+      β <b>${asmp.beta_raw?.toFixed(2)}</b>→<b>${asmp.beta_adjusted?.toFixed(2)}</b>
+        <span style="color:var(--muted);font-size:10px;">(Blume-adj)</span>
+      &nbsp;·&nbsp;ke <b>${asmp.cost_of_equity != null ? (asmp.cost_of_equity*100).toFixed(1)+"%" : "—"}</b>
+      &nbsp;kd <b>${asmp.cost_of_debt != null ? (asmp.cost_of_debt*100).toFixed(1)+"%" : "—"}</b><br>
+      E/V <b>${asmp.equity_weight != null ? (asmp.equity_weight*100).toFixed(0)+"%" : "—"}</b>
+      &nbsp;D/V <b>${asmp.debt_weight != null ? (asmp.debt_weight*100).toFixed(0)+"%" : "—"}</b>
+      &nbsp;tax <b>${asmp.tax_rate != null ? (asmp.tax_rate*100).toFixed(1)+"%" : "—"}</b>
+      &nbsp;→&nbsp;WACC <b>${asmp.wacc != null ? (asmp.wacc*100).toFixed(2)+"%" : "—"}</b><br>
+      Terminal g <b>${asmp.terminal_g != null ? (asmp.terminal_g*100).toFixed(2)+"%" : "—"}</b>
+        <span style="color:var(--muted);font-size:10px;">(≤ GDP ${macro.long_run_gdp != null ? (macro.long_run_gdp*100).toFixed(1)+"%" : ""})</span>
+      &nbsp;·&nbsp;Exit P/E <b>${asmp.future_pe?.toFixed(1)}</b>
+      &nbsp;·&nbsp;MoS <b>${asmp.margin_of_safety != null ? (asmp.margin_of_safety*100).toFixed(0)+"%" : "—"}</b>
+    </div>`;
+
+  // ── Growth rate sources ────────────────────────────────────────────────
+  const gSources = [
+    ["SGR",          asmp.growth_fundamental_sgr],
+    ["ROIC×reinvest",asmp.growth_roic_reinvest],
+    ["Hist EPS",     asmp.growth_historical_eps],
+    ["Hist FCF",     asmp.growth_historical_fcf],
+    ["Analyst",      asmp.growth_analyst],
+    ["Blended",      asmp.growth_blended],
+  ].filter(([, v]) => v != null)
+   .map(([lbl, v]) =>
+     `<span style="margin-right:8px;"><span style="color:var(--muted);font-size:10px;">${lbl}</span>
+      <b>${(v*100).toFixed(1)}%</b></span>`).join("");
+
+  // Bayesian growth posterior table
+  let posteriorHtml = "";
+  const gp = asmp.growth_posterior;
+  if (gp && gp.n_sources > 0) {
+    const srcRows = gp.sources.map(s =>
+      `<tr>
+        <td style="color:var(--muted);">${s.name}</td>
+        <td class="num">${(s.mean*100).toFixed(1)}%</td>
+        <td class="num">${(s.sigma*100).toFixed(1)}%</td>
+        <td class="num">${(s.weight*100).toFixed(0)}%</td>
+       </tr>`).join("");
+    posteriorHtml = `
+      <details style="margin-top:8px;">
+        <summary style="font-size:11px;color:var(--muted);cursor:pointer;">
+          Growth posterior (Bayesian IV-weighted, ${gp.n_sources} sources)
+          — μ <b>${(gp.mu*100).toFixed(1)}%</b> σ <b>${(gp.sigma*100).toFixed(1)}%</b>
+        </summary>
+        <table style="font-size:11px;margin-top:6px;">
+          <thead><tr><th>Source</th><th>Mean</th><th>σ</th><th>Weight</th></tr></thead>
+          <tbody>${srcRows}</tbody>
+          <tfoot><tr>
+            <td><b>Posterior</b></td>
+            <td class="num"><b>${(gp.mu*100).toFixed(1)}%</b></td>
+            <td class="num"><b>${(gp.sigma*100).toFixed(1)}%</b></td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </details>`;
+  }
+
+  // ── Methods table ─────────────────────────────────────────────────────
+  const methods = data.methods || {};
+  const methodRows = Object.entries(methods).map(([key, m]) => {
+    const isMC = key === "monte_carlo";
+    const val  = m.value;
+    const vc   = verdictColor(m.verdict);
+
+    if (isMC) {
+      const lo = m.p10, hi = m.p90, med = m.p50;
+      const span = Math.max(hi - lo, 1);
+      const iqrL = Math.max(0, ((m.p25 - lo) / span) * 100);
+      const iqrW = Math.min(100, ((m.p75 - m.p25) / span) * 100);
+      const medP = Math.max(0, Math.min(99, ((med - lo) / span) * 100));
+      const curP = Math.max(0, Math.min(99, ((p   - lo) / span) * 100));
+      return `<tr>
+        <td style="color:var(--muted);font-size:11px;">${m.name}</td>
+        <td class="num">$${med?.toFixed(2) ?? "—"}</td>
+        <td>
+          <div class="mc-range">
+            <div class="mc-iqr"    style="left:${iqrL}%;width:${iqrW}%;"></div>
+            <div class="mc-median" style="left:${medP}%;"></div>
+            <div class="mc-price"  style="left:${curP}%;" title="Current price $${p.toFixed(2)}"></div>
+          </div>
+          <div class="mc-lbl">P10 $${lo?.toFixed(0)} – P90 $${hi?.toFixed(0)}</div>
+        </td>
+        <td style="color:${vc};white-space:nowrap;font-size:11px;">${m.verdict}</td>
+        <td class="num" style="color:${vc};font-size:11px;">${pctVsPrice(med, p)}</td>
+      </tr>`;
+    }
+
+    const noteHtml = m.note
+      ? `<div style="font-size:10px;color:var(--muted);">${m.note}</div>` : "";
+    const relHtml  = m.reliability && m.reliability !== "High"
+      ? `<div style="font-size:10px;color:${m.reliability==="Flag"?"var(--red)":"var(--yellow)"};">
+           ${m.reliability}</div>` : "";
+    const buyHtml  = m.buy_price
+      ? `<div style="font-size:10px;color:var(--muted);">buy ≤ $${m.buy_price.toFixed(2)}</div>` : "";
+    const gBdg     = m.growth_used != null
+      ? `<div style="font-size:10px;color:var(--muted);">${(m.growth_used*100).toFixed(1)}% g</div>` : "";
+
+    return `<tr>
+      <td style="color:var(--muted);font-size:11px;">${m.name}${noteHtml}${relHtml}</td>
+      <td class="num">${val != null ? "$"+val.toFixed(2) : "N/A"}${buyHtml}</td>
+      <td>${gBdg}</td>
+      <td style="color:${vc};white-space:nowrap;font-size:11px;">${m.verdict}</td>
+      <td class="num" style="color:${vc};font-size:11px;">${pctVsPrice(val, p)}</td>
+    </tr>`;
+  }).join("");
+
+  // ── Sensitivity table ─────────────────────────────────────────────────
+  let sensHtml = "";
+  const sens = data.sensitivity;
+  if (sens && sens.values) {
+    const allVals = sens.values.flat().filter(v => v != null && !isNaN(v));
+    const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+    const span  = Math.max(maxV - minV, 1);
+    const hdrCols = sens.tg_labels.map(lbl =>
+      `<th style="font-size:10px;">${lbl}</th>`).join("");
+    const bodyRows = sens.values.map((row, ri) => {
+      const cells = row.map(v => {
+        if (v == null || isNaN(v)) return `<td style="color:var(--muted);text-align:right;font-size:10px;">N/A</td>`;
+        const ratio = p > 0 ? v / p : 1;
+        const bg = ratio >= 1.30 ? "rgba(46,204,113,0.20)"
+                 : ratio >= 1.10 ? "rgba(46,204,113,0.10)"
+                 : ratio >= 0.90 ? "transparent"
+                 : ratio >= 0.70 ? "rgba(231,76,60,0.10)"
+                 :                 "rgba(231,76,60,0.20)";
+        return `<td style="text-align:right;font-size:10px;background:${bg};">$${v.toFixed(2)}</td>`;
+      }).join("");
+      return `<tr><td style="color:var(--muted);font-size:10px;">${sens.wacc_labels[ri]}</td>${cells}</tr>`;
+    }).join("");
+    sensHtml = `
+      <details style="margin-top:10px;">
+        <summary style="font-size:11px;color:var(--muted);cursor:pointer;">
+          Sensitivity table — fair value vs WACC × terminal g (green=undervalued, red=overvalued vs $${p.toFixed(2)})
+        </summary>
+        <div style="overflow-x:auto;margin-top:6px;">
+          <table style="font-size:10px;border-collapse:collapse;">
+            <thead><tr>
+              <th style="font-size:10px;color:var(--muted);">WACC↓ / g→</th>
+              ${hdrCols}
+            </tr></thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+      </details>`;
+  }
+
+  // ── Data warnings & assumption notes ──────────────────────────────────
+  const warnings = data.data_warnings || [];
+  const notes    = data.assumption_notes || [];
+  const diagHtml = (warnings.length + notes.length) > 0
+    ? `<details style="margin-top:10px;">
+        <summary style="font-size:11px;color:var(--muted);cursor:pointer;">
+          Diagnostics (${warnings.length} warnings, ${notes.length} notes)
+        </summary>
+        ${warnings.map(w => `<div style="font-size:10px;color:var(--red);margin-top:3px;">⚠ ${w}</div>`).join("")}
+        ${notes.map(n => `<div style="font-size:10px;color:var(--muted);margin-top:2px;">• ${n}</div>`).join("")}
+      </details>` : "";
+
+  return `
+    <div class="val-card">
+      <div class="val-header">
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;
+                      letter-spacing:0.06em;margin-bottom:2px;">Intrinsic Value Consensus</div>
+          <div class="val-consensus" style="color:${cc};">${data.consensus}</div>
+          <div class="val-counts">
+            ${counts.undervalued ?? 0} undervalued ·
+            ${counts.fairly_valued ?? 0} fair ·
+            ${counts.overvalued ?? 0} overvalued
+          </div>
+          ${igHtml}${roicHtml}${fcfHtml}${subHtml}
+        </div>
+        <div style="margin-left:auto;text-align:right;">${macroHtml}</div>
+      </div>
+
+      <div style="margin-bottom:8px;font-size:11px;">${gSources}</div>
+      ${posteriorHtml}
+
+      <table style="font-size:12px;margin-top:8px;">
+        <thead><tr>
+          <th>Method</th><th>Fair Value</th><th>Range / Growth</th>
+          <th>Verdict</th><th>vs Price</th>
+        </tr></thead>
+        <tbody>${methodRows}</tbody>
+      </table>
+
+      ${sensHtml}
+      ${diagHtml}
+    </div>`;
+}
+
+function injectValuation(data) {
+  const el = document.getElementById("valuation-slot");
+  if (el) el.innerHTML = renderValuation(data);
 }
 
 // ── Insider panel ────────────────────────────────────────────────────────────
@@ -976,6 +1271,10 @@ async function runCombined() {
     .then(r => r.json())
     .catch(() => null);
 
+  const valuationPromise = fetch(`/api/valuation/${payload.ticker}`)
+    .then(r => r.json())
+    .catch(() => null);
+
   try {
     const body = await screenerPromise;
     if (!body.ok) {
@@ -987,7 +1286,10 @@ async function runCombined() {
     $("results").innerHTML = renderRun(body.data, payload.profile);
     bindProfileRowClicks(payload.profile);
 
-    // Insider + superinvestor data resolve independently — inject when ready
+    // Valuation, insider + superinvestor data resolve independently
+    valuationPromise.then(val => {
+      injectValuation(val && val.ok ? val.data : null);
+    });
     insiderPromise.then(ins => {
       injectInsider(ins && ins.ok ? ins.data : null);
     });

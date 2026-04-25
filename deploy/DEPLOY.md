@@ -79,13 +79,29 @@ Pre-download FinBERT into the cache so first request is fast:
 
 ---
 
-## 5. systemd service
+## 5. Environment file (secrets)
+
+The app loads `/opt/stock-screener/.env` at startup (via `python-dotenv`,
+also exported by systemd's `EnvironmentFile=` directive).
+
+    cp /opt/stock-screener/.env.example /opt/stock-screener/.env
+    nano /opt/stock-screener/.env
+    # Fill in:
+    #   SECRET_KEY=<random 64-char hex; generate with: python -c "import secrets; print(secrets.token_hex(32))">
+    #   FRED_API_KEY=<get free at https://fredaccount.stlouisfed.org/>
+    #   EDGAR_USER_AGENT=stockscreener you@example.com
+    # Optional:
+    #   ANTHROPIC_API_KEY=sk-ant-...
+
+    chown www-data:www-data /opt/stock-screener/.env
+    chmod 600 /opt/stock-screener/.env   # owner-only read
+
+---
+
+## 6. systemd service
 
     cp /opt/stock-screener/deploy/stock-screener.service \
        /etc/systemd/system/stock-screener.service
-
-    # Optional: edit and set ANTHROPIC_API_KEY if you want Claude sentiment
-    # nano /etc/systemd/system/stock-screener.service
 
     systemctl daemon-reload
     systemctl enable --now stock-screener
@@ -140,7 +156,21 @@ renewal timer. Verify:
   `journalctl -u stock-screener -n 100`
 - **Slow first request**: FinBERT is loading (~30 s cold start). Gunicorn
   config sets `preload_app = True` so subsequent requests are warm.
-- **Rate-limited by yfinance/SEC**: The in-process TTL cache (10 min) covers
-  a single VPS. For heavier traffic switch to redis-backed caching.
+- **Rate-limited by yfinance/SEC**: Two-layer cache.
+  1. `cache.py` — 10-min in-memory TTL on yfinance.Ticker + SEC/news helpers
+     (per-process, lost on restart).
+  2. `db_cache.py` — persistent SQLite (default `cache/api_cache.db`) for the
+     6 main API endpoints. TTLs: valuation 6 h, screen* 1 h, insider 12 h,
+     superinvestors 24 h. Clients can bypass with `?fresh=1`.
+  - Inspect:    `curl http://127.0.0.1:8000/api/cache/stats`
+  - Purge old:  `curl -XPOST http://127.0.0.1:8000/api/cache/purge`
+  - Wipe one:   `curl -XPOST -H 'Content-Type: application/json' \
+                   -d '{"ticker":"AAPL"}' http://127.0.0.1:8000/api/cache/clear`
+  - For heavier traffic switch to redis-backed caching (drop-in replacement
+    in `db_cache.py`).
+- **`/api/cache/stats` shows `db_path` outside `/opt/stock-screener`**:
+  Set `TRADING_CACHE_DB=/opt/stock-screener/cache/api_cache.db` in `.env`
+  and ensure the dir is writable: `mkdir -p /opt/stock-screener/cache &&
+  chown www-data:www-data /opt/stock-screener/cache`.
 - **Out of memory**: `workers = 1` in `gunicorn.conf.py`, or drop
   `transformers`/`torch` from requirements.
