@@ -118,6 +118,8 @@ def fetch_ticker_snapshot(ticker: str) -> Dict[str, Any]:
     except Exception:
         info = {}
     mcap = info.get("marketCap")
+    price = (info.get("currentPrice") or info.get("regularMarketPrice")
+             or info.get("navPrice") or info.get("previousClose"))
     return {
         "ticker":          ticker,
         "name":            info.get("longName") or info.get("shortName"),
@@ -127,6 +129,7 @@ def fetch_ticker_snapshot(ticker: str) -> Dict[str, Any]:
         "industry":        info.get("industry"),
         "currency":        info.get("currency"),
         "exchange":        info.get("exchange"),
+        "price":           price,
     }
 
 

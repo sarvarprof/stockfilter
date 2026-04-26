@@ -264,6 +264,135 @@ def api_insider(ticker):
         }), 500
 
 
+_SECTOR_PE = {
+    "Technology": 28, "Healthcare": 22, "Consumer Cyclical": 20,
+    "Financial Services": 13, "Utilities": 16, "Real Estate": 30,
+    "Consumer Defensive": 18, "Industrials": 18, "Basic Materials": 14,
+    "Energy": 12, "Communication Services": 22,
+}
+_SECTOR_EV = {
+    "Technology": 20, "Healthcare": 18, "Utilities": 10,
+    "Energy": 7, "Financial Services": 10, "Real Estate": 14,
+}
+_SECTOR_PB = {
+    "Financial Services": 1.3, "Real Estate": 1.5, "Utilities": 1.5,
+}
+
+
+def _simple_valuation(ticker: str) -> dict | None:
+    """
+    Fallback: yfinance-only fair-value estimates when the full EDGAR/FRED
+    valuator fails. Returns a dict in the same shape as StockValuator.report()
+    so renderValuation() in the frontend works without changes.
+    """
+    import yfinance as yf
+    try:
+        info = yf.Ticker(ticker).info or {}
+    except Exception:
+        return None
+
+    price = (info.get("currentPrice") or info.get("regularMarketPrice")
+             or info.get("navPrice") or 0)
+    if not price:
+        return None
+
+    sector   = info.get("sector") or ""
+    pe_tgt   = _SECTOR_PE.get(sector, 16)
+    ev_tgt   = _SECTOR_EV.get(sector, 12)
+    pb_tgt   = _SECTOR_PB.get(sector, 2.5)
+
+    def _v(fair, p):
+        if not fair or not p:
+            return "N/A"
+        r = fair / p
+        return "Undervalued" if r >= 1.20 else ("Fairly Valued" if r >= 0.90 else "Overvalued")
+
+    methods: dict = {}
+
+    # 1. Trailing P/E
+    eps = info.get("trailingEps")
+    if eps and eps > 0:
+        fair = round(eps * pe_tgt, 2)
+        methods["pe_trailing"] = {
+            "name": f"Trailing P/E ({pe_tgt}×)",
+            "value": fair, "verdict": _v(fair, price),
+            "reliability": "Medium",
+            "note": f"Trailing EPS ${eps:.2f} × {pe_tgt}× sector P/E",
+        }
+
+    # 2. Forward P/E
+    fwd_eps = info.get("forwardEps")
+    if fwd_eps and fwd_eps > 0:
+        fair = round(fwd_eps * pe_tgt, 2)
+        methods["pe_forward"] = {
+            "name": f"Forward P/E ({pe_tgt}×)",
+            "value": fair, "verdict": _v(fair, price),
+            "reliability": "Medium",
+            "note": f"Forward EPS ${fwd_eps:.2f} × {pe_tgt}×",
+        }
+
+    # 3. Analyst consensus target
+    target     = info.get("targetMeanPrice") or info.get("targetMedianPrice")
+    n_analysts = info.get("numberOfAnalystOpinions") or 0
+    if target and target > 0:
+        methods["analyst_target"] = {
+            "name": "Analyst Target (mean)",
+            "value": round(target, 2), "verdict": _v(target, price),
+            "reliability": "Medium" if n_analysts >= 5 else "Low",
+            "note": f"{n_analysts} analyst{'s' if n_analysts != 1 else ''}",
+        }
+
+    # 4. Price / Book
+    book = info.get("bookValue")
+    if book and book > 0:
+        fair = round(book * pb_tgt, 2)
+        methods["price_book"] = {
+            "name": f"Price/Book ({pb_tgt}×)",
+            "value": fair, "verdict": _v(fair, price),
+            "reliability": "Low",
+            "note": f"Book ${book:.2f} × {pb_tgt}×",
+        }
+
+    # 5. EV / EBITDA
+    ebitda = info.get("ebitda")
+    shares = info.get("sharesOutstanding")
+    debt   = info.get("totalDebt") or 0
+    cash   = info.get("totalCash") or 0
+    if ebitda and ebitda > 0 and shares and shares > 0:
+        equity_val = ebitda * ev_tgt - debt + cash
+        fair = round(equity_val / shares, 2) if equity_val > 0 else None
+        if fair:
+            methods["ev_ebitda"] = {
+                "name": f"EV/EBITDA ({ev_tgt}×)",
+                "value": fair, "verdict": _v(fair, price),
+                "reliability": "Medium",
+                "note": f"EBITDA × {ev_tgt}× − net debt per share",
+            }
+
+    if not methods:
+        return None
+
+    verdicts = [m["verdict"] for m in methods.values() if m["verdict"] != "N/A"]
+    n_u = sum(1 for v in verdicts if v == "Undervalued")
+    n_f = sum(1 for v in verdicts if v == "Fairly Valued")
+    n_o = sum(1 for v in verdicts if v == "Overvalued")
+    consensus = ("Undervalued"   if n_u > n_o and n_u >= n_f else
+                 "Overvalued"    if n_o > n_u and n_o > n_f  else
+                 "Fairly Valued")
+
+    return {
+        "current_price":    price,
+        "consensus":        consensus,
+        "consensus_counts": {"undervalued": n_u, "fairly_valued": n_f, "overvalued": n_o},
+        "methods":          methods,
+        "assumptions":      {},
+        "macro":            {},
+        "data_warnings":    ["Simple estimates only — EDGAR/FRED valuation unavailable for this ticker"],
+        "assumption_notes": [],
+        "simple_mode":      True,
+    }
+
+
 @app.route("/api/valuation/<ticker>")
 def api_valuation(ticker):
     ticker = ticker.upper().strip()
@@ -273,21 +402,37 @@ def api_valuation(ticker):
             if cached is not None:
                 return jsonify({"ok": True, "data": cached, "cached": True})
 
-        # Provide a default EDGAR User-Agent when env var is absent
         if not os.environ.get("EDGAR_USER_AGENT"):
             os.environ["EDGAR_USER_AGENT"] = "stockscreener saidrakhmonov94@gmail.com"
 
-        v = StockValuator(ticker)
-        rep = v.report()
+        rep = None
+        primary_err = None
+        try:
+            v = StockValuator(ticker)
+            rep = v.report()
+            # Serialize the pandas DataFrame sensitivity table to JSON
+            sens_df = rep.pop("sensitivity", None)
+            if sens_df is not None and not sens_df.empty:
+                rep["sensitivity"] = {
+                    "wacc_labels": [f"{r:.2%}" for r in sens_df.index],
+                    "tg_labels":   [f"{c:.2%}" for c in sens_df.columns],
+                    "values":      sens_df.round(2).values.tolist(),
+                }
+        except Exception as e:
+            primary_err = e
 
-        # Serialize the pandas DataFrame sensitivity table to JSON
-        sens_df = rep.pop("sensitivity", None)
-        if sens_df is not None and not sens_df.empty:
-            rep["sensitivity"] = {
-                "wacc_labels": [f"{r:.2%}" for r in sens_df.index],
-                "tg_labels":   [f"{c:.2%}" for c in sens_df.columns],
-                "values":      sens_df.round(2).values.tolist(),
-            }
+        if rep is None:
+            rep = _simple_valuation(ticker)
+            if rep is None:
+                return jsonify({
+                    "ok": False,
+                    "error": str(primary_err) if primary_err else "No data available",
+                }), 500
+            if primary_err:
+                rep["data_warnings"] = (
+                    [f"Full valuation error: {primary_err}"] +
+                    rep.get("data_warnings", [])
+                )
 
         db_cache.set("valuation", ticker, None, rep, TTL_VALUATION)
         return jsonify({"ok": True, "data": rep, "cached": False})

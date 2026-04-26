@@ -532,6 +532,11 @@ function renderRun(data, selectedProfile) {
     <div class="meta">
       <div class="meta-item"><b>Ticker</b>${data.ticker}</div>
       <div class="meta-item"><b>Name</b>${snap.name || "—"}</div>
+      <div class="meta-item"><b>Price</b>
+        <span style="font-size:16px;font-weight:700;color:var(--text);">
+          ${snap.price ? (snap.currency && snap.currency !== "USD" ? snap.currency + " " : "$") + snap.price.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : "—"}
+        </span>
+      </div>
       <div class="meta-item"><b>Market Cap</b>${moneyFmt(snap.market_cap)}
         <span class="badge" style="margin-left:6px;">${snap.market_cap_band}</span>
       </div>
@@ -630,8 +635,9 @@ function renderValuation(data) {
   const asmp   = data.assumptions || {};
   const macro  = data.macro || {};
   const counts = data.consensus_counts || {};
-  const cc     = verdictColor(data.consensus);
-  const ig     = data.implied_growth;
+  const cc        = verdictColor(data.consensus);
+  const ig        = data.implied_growth;
+  const simpleMode = data.simple_mode === true;
 
   // ── Consensus header ──────────────────────────────────────────────────
   const igHtml = ig != null
@@ -830,7 +836,12 @@ function renderValuation(data) {
         <div>
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;
                       letter-spacing:0.06em;margin-bottom:2px;">Intrinsic Value Consensus</div>
-          <div class="val-consensus" style="color:${cc};">${data.consensus}</div>
+          <div class="val-consensus" style="color:${cc};">${data.consensus}
+            ${simpleMode ? `<span style="font-size:11px;font-weight:500;
+              padding:2px 7px;border-radius:4px;margin-left:8px;vertical-align:middle;
+              background:rgba(241,196,15,0.15);color:var(--yellow);border:1px solid rgba(241,196,15,0.3);">
+              Simple estimates</span>` : ""}
+          </div>
           <div class="val-counts">
             ${counts.undervalued ?? 0} undervalued ·
             ${counts.fairly_valued ?? 0} fair ·
