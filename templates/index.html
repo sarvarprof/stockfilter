@@ -257,6 +257,117 @@
     font-weight: 600; font-size: 12px; }
   .super-wrap tfoot .bought { color: var(--green); }
   .super-wrap tfoot .sold   { color: var(--red); }
+
+  /* ===== Top tab navigation ===== */
+  .tabs {
+    display: flex; gap: 4px; border-bottom: 1px solid var(--border);
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .tab {
+    background: transparent; color: var(--muted); border: none;
+    padding: 10px 18px; font-size: 14px; font-weight: 500;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; font-family: inherit;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ===== File upload area ===== */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: 10px;
+    padding: 28px; text-align: center; background: var(--panel2);
+    cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent); background: rgba(58, 160, 255, 0.05);
+  }
+  .upload-zone .icon { font-size: 28px; margin-bottom: 6px; }
+  .upload-zone .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .upload-zone input[type=file] { display: none; }
+  .file-name { color: var(--accent); font-size: 13px; margin-top: 8px;
+               word-break: break-all; }
+
+  /* ===== Stat cards ===== */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin: 16px 0;
+  }
+  .stat-card {
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px;
+  }
+  .stat-card .label { font-size: 11px; text-transform: uppercase;
+    color: var(--muted); letter-spacing: 0.06em; margin-bottom: 6px; }
+  .stat-card .value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat-card .sub   { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .stat-card.bull  .value { color: var(--green); }
+  .stat-card.bear  .value { color: var(--red); }
+  .stat-card.hero  { grid-column: 1 / -1; padding: 18px 20px; }
+  .stat-card.hero .value { font-size: 26px; }
+
+  .verdict-pill {
+    display: inline-block; padding: 4px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+  }
+  .verdict-bull { background: rgba(46, 204, 113, 0.18); color: var(--green); }
+  .verdict-bear { background: rgba(231, 76, 60, 0.18); color: var(--red); }
+  .verdict-neut { background: rgba(241, 196, 15, 0.18); color: var(--yellow); }
+
+  /* ===== Result tables ===== */
+  .result-section { margin-top: 22px; }
+  .result-section h3 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  .data-table {
+    width: 100%; border-collapse: collapse; font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .data-table th, .data-table td {
+    padding: 7px 10px; border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .data-table th { color: var(--muted); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.05em; }
+  .data-table td.num { text-align: right; }
+  .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .data-table .pos { color: var(--green); }
+  .data-table .neg { color: var(--red); }
+  .table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: 6px; }
+
+  .flag-chip {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 600; background: var(--panel);
+    border: 1px solid var(--border); margin-right: 3px; color: var(--muted);
+  }
+  .flag-chip.gold { color: var(--yellow); border-color: var(--yellow); }
+  .flag-chip.red  { color: var(--red); border-color: var(--red); }
+
+  .bias-banner {
+    padding: 14px 18px; border-radius: 8px; margin-bottom: 14px;
+    background: var(--panel2); border-left: 4px solid var(--muted);
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .bias-banner.bull { border-left-color: var(--green); }
+  .bias-banner.bear { border-left-color: var(--red); }
+  .bias-banner.neut { border-left-color: var(--yellow); }
+  .bias-banner .big {
+    font-size: 18px; font-weight: 700;
+  }
+  .bias-banner.bull .big { color: var(--green); }
+  .bias-banner.bear .big { color: var(--red); }
+  .bias-banner.neut .big { color: var(--yellow); }
+
+  .loading-spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -267,6 +378,67 @@
   All options are editable. Preview locally before deploy.
 </div>
 
+<div class="tabs" id="tabs">
+  <button class="tab active" data-view="screener">Screener</button>
+  <button class="tab" data-view="darkpool">Dark Pool Analyzer</button>
+  <button class="tab" data-view="optionsflow">Options Flow Analyzer</button>
+</div>
+
+<!-- ============ DARK POOL VIEW ============ -->
+<div class="view" id="view-darkpool">
+  <div class="panel">
+    <h2>Dark Pool Print Analyzer</h2>
+    <label class="upload-zone" id="dp-zone">
+      <div class="icon">📊</div>
+      <div><strong>Click or drop a CSV here</strong></div>
+      <div class="hint">
+        Cheddar Flow dark-pool prints export
+        (columns: date, time, symbol, size, price, premium)
+      </div>
+      <div class="file-name" id="dp-filename"></div>
+      <input type="file" id="dp-file" accept=".csv" />
+    </label>
+    <div class="btn-row">
+      <button id="dp-run" class="btn" type="button" disabled>Analyze</button>
+      <button id="dp-clear" class="btn secondary" type="button">Clear</button>
+    </div>
+    <div id="dp-status" class="hint" style="margin-top:8px;"></div>
+  </div>
+  <div class="panel" id="dp-results-panel" style="margin-top:16px;display:none;">
+    <h2>Analysis</h2>
+    <div id="dp-results"></div>
+  </div>
+</div>
+
+<!-- ============ OPTIONS FLOW VIEW ============ -->
+<div class="view" id="view-optionsflow">
+  <div class="panel">
+    <h2>Options Flow Analyzer — Long Position Intelligence</h2>
+    <label class="upload-zone" id="of-zone">
+      <div class="icon">📈</div>
+      <div><strong>Click or drop a CSV here</strong></div>
+      <div class="hint">
+        Cheddar Flow options trades export
+        (columns: date, time, symbol, expiry, strike, put_call, side, spot, size,
+        price, premium, sweep_block_split, volume, open_int, conds)
+      </div>
+      <div class="file-name" id="of-filename"></div>
+      <input type="file" id="of-file" accept=".csv" />
+    </label>
+    <div class="btn-row">
+      <button id="of-run" class="btn" type="button" disabled>Analyze</button>
+      <button id="of-clear" class="btn secondary" type="button">Clear</button>
+    </div>
+    <div id="of-status" class="hint" style="margin-top:8px;"></div>
+  </div>
+  <div class="panel" id="of-results-panel" style="margin-top:16px;display:none;">
+    <h2>Analysis</h2>
+    <div id="of-results"></div>
+  </div>
+</div>
+
+<!-- ============ SCREENER VIEW (existing) ============ -->
+<div class="view active" id="view-screener">
 <div class="layout">
 
   <!-- ============ LEFT: controls ============ -->
@@ -355,6 +527,7 @@
     </div>
   </div>
 </div>
+</div><!-- /view-screener -->
 
 <script>
 let CONFIG = null;
@@ -1326,6 +1499,532 @@ function bindProfileRowClicks(initialProfile) {
   });
 }
 
+// =====================================================================
+// TAB NAVIGATION
+// =====================================================================
+
+function setupTabs() {
+  document.querySelectorAll("#tabs .tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const view = btn.getAttribute("data-view");
+      document.querySelectorAll("#tabs .tab").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("view-" + view).classList.add("active");
+    });
+  });
+}
+
+// =====================================================================
+// SHARED HELPERS
+// =====================================================================
+
+function fmtMoney(n) {
+  if (n == null || isNaN(n)) return "—";
+  const a = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (a >= 1e9) return sign + "$" + (a/1e9).toFixed(2) + "B";
+  if (a >= 1e6) return sign + "$" + (a/1e6).toFixed(2) + "M";
+  if (a >= 1e3) return sign + "$" + (a/1e3).toFixed(1) + "K";
+  return sign + "$" + a.toFixed(0);
+}
+
+function fmtPct(n, signed) {
+  if (n == null || isNaN(n)) return "—";
+  const s = (signed && n > 0 ? "+" : "") + n.toFixed(2) + "%";
+  return s;
+}
+
+function fmtNum(n, decimals=2) {
+  if (n == null || isNaN(n)) return "—";
+  return Number(n).toLocaleString(undefined, {
+    minimumFractionDigits: decimals, maximumFractionDigits: decimals
+  });
+}
+
+function biasClass(bias) {
+  if (!bias) return "neut";
+  const u = bias.toUpperCase();
+  if (u.includes("BULL")) return "bull";
+  if (u.includes("BEAR")) return "bear";
+  return "neut";
+}
+
+function buildUploader(zoneId, fileId, filenameId, runBtnId, onFileSelected) {
+  const zone   = $(zoneId);
+  const input  = $(fileId);
+  const fname  = $(filenameId);
+  const runBtn = $(runBtnId);
+
+  const setFile = (file) => {
+    if (!file) {
+      fname.textContent = "";
+      runBtn.disabled = true;
+      onFileSelected(null);
+    } else {
+      fname.textContent = file.name + " — " + (file.size/1024).toFixed(1) + " KB";
+      runBtn.disabled = false;
+      onFileSelected(file);
+    }
+  };
+
+  input.addEventListener("change", () => setFile(input.files[0]));
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", e => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+    if (e.dataTransfer.files.length) {
+      input.files = e.dataTransfer.files;
+      setFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  return { setFile, getFile: () => input.files[0] || null };
+}
+
+// =====================================================================
+// DARK POOL ANALYZER
+// =====================================================================
+
+let DP_FILE = null;
+
+function setupDarkPool() {
+  const ctl = buildUploader("dp-zone", "dp-file", "dp-filename", "dp-run",
+                             (f) => { DP_FILE = f; });
+  $("dp-run").addEventListener("click", runDarkPool);
+  $("dp-clear").addEventListener("click", () => {
+    $("dp-file").value = "";
+    ctl.setFile(null);
+    $("dp-status").textContent = "";
+    $("dp-results-panel").style.display = "none";
+    $("dp-results").innerHTML = "";
+  });
+}
+
+async function runDarkPool() {
+  if (!DP_FILE) return;
+  $("dp-run").disabled = true;
+  $("dp-status").innerHTML = '<span class="loading-spinner"></span> Analyzing… (fetches market data, may take 10-30s)';
+  try {
+    const fd = new FormData();
+    fd.append("file", DP_FILE);
+    const res = await fetch("/api/darkpool", { method: "POST", body: fd });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || "Unknown error");
+    $("dp-results-panel").style.display = "block";
+    $("dp-results").innerHTML = renderDarkPool(json.data);
+    $("dp-status").textContent = "Done.";
+  } catch (e) {
+    $("dp-status").innerHTML = '<span style="color:var(--red);">Error: ' + (e.message || e) + '</span>';
+  } finally {
+    $("dp-run").disabled = false;
+  }
+}
+
+function renderDarkPool(d) {
+  const s = d.summary;
+  const cls = biasClass(s.overall_verdict);
+  let html = "";
+
+  // Bias banner
+  html += `<div class="bias-banner ${cls}">
+    <div>
+      <div class="big">${escapeHtml(d.symbol)} — ${escapeHtml(s.overall_verdict)}</div>
+      <div class="hint">${s.trade_count} prints · ${s.num_clusters} institutional clusters detected
+        · ${escapeHtml(s.date_range.start.slice(0,10))} → ${escapeHtml(s.date_range.end.slice(0,10))}</div>
+    </div>
+  </div>`;
+
+  // Stats
+  html += `<div class="stat-grid">
+    <div class="stat-card"><div class="label">Total Premium</div>
+      <div class="value">${fmtMoney(s.total_premium)}</div></div>
+    <div class="stat-card bull"><div class="label">Bullish</div>
+      <div class="value">${fmtMoney(s.bullish_premium)}</div>
+      <div class="sub">${s.bullish_pct.toFixed(1)}% of flow</div></div>
+    <div class="stat-card bear"><div class="label">Bearish</div>
+      <div class="value">${fmtMoney(s.bearish_premium)}</div>
+      <div class="sub">${s.bearish_pct.toFixed(1)}% of flow</div></div>
+    <div class="stat-card"><div class="label">Neutral</div>
+      <div class="value">${fmtMoney(s.neutral_premium)}</div>
+      <div class="sub">${s.neutral_pct.toFixed(1)}% of flow</div></div>
+  </div>`;
+
+  // Daily flow
+  if (d.daily_flow.length) {
+    html += `<div class="result-section"><h3>Daily Premium Flow</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Date</th><th class="num">Premium</th><th class="num">3-Day Rolling</th></tr></thead>
+        <tbody>`;
+    const rolling = Object.fromEntries(d.rolling_accumulation.map(r => [r.date, r.rolling_3d_premium]));
+    d.daily_flow.forEach(r => {
+      html += `<tr><td>${r.date}</td>
+        <td class="num">${fmtMoney(r.premium)}</td>
+        <td class="num">${fmtMoney(rolling[r.date])}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Clusters
+  if (d.clusters.length) {
+    html += `<div class="result-section"><h3>Institutional Clusters</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>#</th><th>First Seen</th><th class="num">Trades</th>
+          <th class="num">Total Premium</th><th class="num">Avg Price</th>
+          <th class="num">Span (min)</th></tr></thead><tbody>`;
+    d.clusters.forEach(c => {
+      html += `<tr><td>${c.id}</td>
+        <td>${c.first_seen.replace("T", " ").slice(0,16)}</td>
+        <td class="num">${c.trades}</td>
+        <td class="num">${fmtMoney(c.total_premium)}</td>
+        <td class="num">$${fmtNum(c.avg_price)}</td>
+        <td class="num">${fmtNum(c.span_minutes, 1)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Key levels
+  if (d.key_levels.length) {
+    html += `<div class="result-section"><h3>Key Institutional Price Levels</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th class="num">Price</th><th class="num">Prints</th>
+          <th class="num">Total Premium</th><th>Dates</th></tr></thead><tbody>`;
+    d.key_levels.forEach(l => {
+      const dates = l.dates.slice(0,4).join(", ") + (l.dates.length > 4 ? ` +${l.dates.length-4} more` : "");
+      html += `<tr><td class="num">$${fmtNum(l.price)}</td>
+        <td class="num">${l.count}</td>
+        <td class="num">${fmtMoney(l.total_premium)}</td>
+        <td>${escapeHtml(dates)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Tier breakdown
+  if (d.tier_breakdown.length) {
+    html += `<div class="result-section"><h3>Premium by Print-Size Tier</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Tier</th><th class="num">Trades</th>
+          <th class="num">Total</th><th class="num">Avg</th></tr></thead><tbody>`;
+    d.tier_breakdown.forEach(t => {
+      html += `<tr><td>${escapeHtml(t.tier)}</td>
+        <td class="num">${t.count}</td>
+        <td class="num">${fmtMoney(t.total_premium)}</td>
+        <td class="num">${fmtMoney(t.avg_premium)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Session breakdown
+  if (d.session_breakdown.length) {
+    html += `<div class="result-section"><h3>Market Session Breakdown</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Session</th><th class="num">Trades</th>
+          <th class="num">Total Premium</th></tr></thead><tbody>`;
+    d.session_breakdown.forEach(s2 => {
+      html += `<tr><td>${escapeHtml(s2.session)}</td>
+        <td class="num">${s2.trades}</td>
+        <td class="num">${fmtMoney(s2.total_premium)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Forward returns
+  if (d.forward_returns.length) {
+    html += `<div class="result-section"><h3>Forward Returns After High-Volume Days</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Date</th><th class="num">Premium</th><th class="num">Entry</th>
+          <th class="num">+1D</th><th class="num">+3D</th><th class="num">+5D</th></tr></thead><tbody>`;
+    d.forward_returns.slice().sort((a,b) => b.daily_premium - a.daily_premium).slice(0, 12).forEach(r => {
+      const colorize = (x) => {
+        if (x == null) return '<td class="num">—</td>';
+        const c = x > 0 ? "pos" : (x < 0 ? "neg" : "");
+        return `<td class="num ${c}">${fmtPct(x, true)}</td>`;
+      };
+      html += `<tr><td>${r.date}</td>
+        <td class="num">${fmtMoney(r.daily_premium)}</td>
+        <td class="num">$${fmtNum(r.entry_price)}</td>
+        ${colorize(r.fwd_1d_return)}
+        ${colorize(r.fwd_3d_return)}
+        ${colorize(r.fwd_5d_return)}</tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // All trades
+  html += `<div class="result-section"><h3>All Prints (${d.trades.length})</h3>
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>Date</th><th>Time</th><th class="num">Price</th>
+        <th class="num">Size</th><th class="num">Premium</th>
+        <th>Tier</th><th>Session</th><th>Verdict</th><th>VWAP</th></tr></thead><tbody>`;
+  d.trades.forEach(t => {
+    const vc = biasClass(t.verdict) === "bull" ? "pos"
+             : biasClass(t.verdict) === "bear" ? "neg" : "";
+    html += `<tr><td>${t.date}</td><td>${t.time}</td>
+      <td class="num">$${fmtNum(t.price)}</td>
+      <td class="num">${(t.size||0).toLocaleString()}</td>
+      <td class="num">${fmtMoney(t.premium_val)}</td>
+      <td>${escapeHtml(t.tier)}</td>
+      <td>${escapeHtml(t.session)}</td>
+      <td class="${vc}">${escapeHtml(t.verdict)}</td>
+      <td>${escapeHtml(t.vwap_verdict)}</td></tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+
+  return html;
+}
+
+// =====================================================================
+// OPTIONS FLOW ANALYZER
+// =====================================================================
+
+let OF_FILE = null;
+
+function setupOptionsFlow() {
+  const ctl = buildUploader("of-zone", "of-file", "of-filename", "of-run",
+                             (f) => { OF_FILE = f; });
+  $("of-run").addEventListener("click", runOptionsFlow);
+  $("of-clear").addEventListener("click", () => {
+    $("of-file").value = "";
+    ctl.setFile(null);
+    $("of-status").textContent = "";
+    $("of-results-panel").style.display = "none";
+    $("of-results").innerHTML = "";
+  });
+}
+
+async function runOptionsFlow() {
+  if (!OF_FILE) return;
+  $("of-run").disabled = true;
+  $("of-status").innerHTML = '<span class="loading-spinner"></span> Analyzing options flow…';
+  try {
+    const fd = new FormData();
+    fd.append("file", OF_FILE);
+    const res = await fetch("/api/optionsflow", { method: "POST", body: fd });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || "Unknown error");
+    $("of-results-panel").style.display = "block";
+    $("of-results").innerHTML = renderOptionsFlow(json.data);
+    $("of-status").textContent = "Done.";
+  } catch (e) {
+    $("of-status").innerHTML = '<span style="color:var(--red);">Error: ' + (e.message || e) + '</span>';
+  } finally {
+    $("of-run").disabled = false;
+  }
+}
+
+function renderOptionsFlow(d) {
+  const s = d.summary;
+  const cls = biasClass(s.overall_bias);
+  let html = "";
+
+  // Bias banner
+  html += `<div class="bias-banner ${cls}">
+    <div>
+      <div class="big">${escapeHtml(d.symbol)} — ${escapeHtml(s.overall_bias)}</div>
+      <div class="hint">${s.trade_count} trades · C/P ratio ${s.cp_ratio == null ? "n/a" : s.cp_ratio.toFixed(2) + "x"}
+        · ${escapeHtml(s.date_range.start ? s.date_range.start.slice(0,10) : "")} → ${escapeHtml(s.date_range.end ? s.date_range.end.slice(0,10) : "")}</div>
+    </div>
+  </div>`;
+
+  // Stats
+  const netSign = s.net_flow >= 0 ? "+" : "";
+  html += `<div class="stat-grid">
+    <div class="stat-card"><div class="label">Total Premium</div>
+      <div class="value">${fmtMoney(s.total_premium)}</div></div>
+    <div class="stat-card bull"><div class="label">Bullish Premium</div>
+      <div class="value">${fmtMoney(s.bull_premium)}</div></div>
+    <div class="stat-card bear"><div class="label">Bearish Premium</div>
+      <div class="value">${fmtMoney(s.bear_premium)}</div></div>
+    <div class="stat-card ${s.net_flow >= 0 ? "bull" : "bear"}">
+      <div class="label">Net Flow</div>
+      <div class="value">${netSign}${fmtMoney(s.net_flow).replace("$", "$")}</div></div>
+    <div class="stat-card"><div class="label">Unusual Activity</div>
+      <div class="value">${fmtMoney(s.unusual_premium)}</div>
+      <div class="sub">${s.total_premium ? (s.unusual_premium/s.total_premium*100).toFixed(1) : 0}% of flow</div></div>
+    <div class="stat-card"><div class="label">Opening Positions</div>
+      <div class="value">${fmtMoney(s.opening_premium)}</div>
+      <div class="sub">${s.total_premium ? (s.opening_premium/s.total_premium*100).toFixed(1) : 0}% of flow</div></div>
+    <div class="stat-card bull"><div class="label">LEAPS Bullish</div>
+      <div class="value">${fmtMoney(s.leaps_bullish)}</div>
+      <div class="sub">long-term conviction</div></div>
+  </div>`;
+
+  // Daily flow
+  if (d.daily_flow.length) {
+    html += `<div class="result-section"><h3>Daily Net Flow</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Date</th><th class="num">Bull</th><th class="num">Bear</th>
+          <th class="num">Net</th><th class="num">C/P</th><th class="num">Trades</th></tr></thead><tbody>`;
+    d.daily_flow.forEach(r => {
+      const cpStr = r.cp_ratio == null ? "—" : r.cp_ratio.toFixed(2) + "x";
+      const netCls = r.net_flow > 0 ? "pos" : (r.net_flow < 0 ? "neg" : "");
+      html += `<tr><td>${r.date}</td>
+        <td class="num pos">${fmtMoney(r.bull_premium)}</td>
+        <td class="num neg">${fmtMoney(r.bear_premium)}</td>
+        <td class="num ${netCls}">${r.net_flow >= 0 ? "+" : ""}${fmtMoney(r.net_flow)}</td>
+        <td class="num">${cpStr}</td>
+        <td class="num">${r.trade_count}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Whales
+  if (d.whales.length) {
+    html += `<div class="result-section"><h3>Whale Accumulation — Repeat Strike Builds</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Strike</th><th>Expiry</th><th>Type</th><th>Direction</th>
+          <th class="num">Trades</th><th class="num">Total $</th>
+          <th class="num">Avg Px</th><th class="num">Breakeven</th>
+          <th class="num">Req Move</th><th>Flags</th></tr></thead><tbody>`;
+    d.whales.forEach(w => {
+      const dirClass = w.direction === "Bullish" ? "pos" : (w.direction === "Bearish" ? "neg" : "");
+      let flags = "";
+      if (w.is_opening_any) flags += '<span class="flag-chip gold">OPEN</span>';
+      if (w.is_unusual_any) flags += '<span class="flag-chip red">UNQ</span>';
+      html += `<tr><td>$${fmtNum(w.strike)}</td>
+        <td>${w.expiry}</td>
+        <td>${w.put_call.toUpperCase()}</td>
+        <td class="${dirClass}"><b>${escapeHtml(w.direction)}</b></td>
+        <td class="num">${w.trade_count}</td>
+        <td class="num">${fmtMoney(w.total_premium)}</td>
+        <td class="num">$${fmtNum(w.avg_price)}</td>
+        <td class="num">$${fmtNum(w.breakeven)}</td>
+        <td class="num">${fmtPct(w.required_move_pct, true)}</td>
+        <td>${flags}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Long ideas
+  if (d.long_ideas.length) {
+    html += `<div class="result-section"><h3>Top Long-Position Trade Ideas</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Date</th><th>Strike</th><th>Expiry</th><th>Type</th>
+          <th>Sentiment</th><th class="num">Score</th><th class="num">Premium</th>
+          <th>Exec</th><th class="num">Req Move</th><th>Flags</th></tr></thead><tbody>`;
+    d.long_ideas.forEach(li => {
+      const flags = (li.flags || []).map(f => `<span class="flag-chip gold">${escapeHtml(f)}</span>`).join("");
+      html += `<tr><td>${li.date}</td>
+        <td>$${fmtNum(li.strike)}</td>
+        <td>${li.expiry}</td>
+        <td>${li.put_call.toUpperCase()}</td>
+        <td class="pos">${escapeHtml(li.sentiment)}</td>
+        <td class="num">${li.bull_score.toFixed(3)}</td>
+        <td class="num">${fmtMoney(li.premium_val)}</td>
+        <td>${escapeHtml(li.exec_type)}</td>
+        <td class="num">${fmtPct(li.required_move_pct, true)}</td>
+        <td>${flags}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // LEAPS
+  if (d.leaps.length) {
+    html += `<div class="result-section"><h3>LEAPS Positions (>180 DTE)</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Date</th><th>Strike</th><th>Expiry</th><th>Type</th>
+          <th>Sentiment</th><th class="num">Premium</th><th class="num">DTE</th>
+          <th class="num">Req Move</th><th>UNQ</th></tr></thead><tbody>`;
+    d.leaps.forEach(l => {
+      const sCls = l.sentiment_score > 0 ? "pos" : (l.sentiment_score < 0 ? "neg" : "");
+      html += `<tr><td>${l.date}</td>
+        <td>$${fmtNum(l.strike)}</td>
+        <td>${l.expiry}</td>
+        <td>${l.put_call.toUpperCase()}</td>
+        <td class="${sCls}">${escapeHtml(l.sentiment)}</td>
+        <td class="num">${fmtMoney(l.premium_val)}</td>
+        <td class="num">${l.dte}</td>
+        <td class="num">${fmtPct(l.required_move_pct, true)}</td>
+        <td>${l.is_unusual ? '<span class="flag-chip red">UNQ</span>' : ""}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Unusual
+  if (d.unusual_trades.length) {
+    html += `<div class="result-section"><h3>Unusual Activity (V/OI > 3)</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Date</th><th>Strike</th><th>Expiry</th><th>Type</th>
+          <th>Sentiment</th><th class="num">Premium</th>
+          <th class="num">V/OI</th><th>Moneyness</th><th class="num">BE</th></tr></thead><tbody>`;
+    d.unusual_trades.forEach(u => {
+      html += `<tr><td>${u.date}</td>
+        <td>$${fmtNum(u.strike)}</td>
+        <td>${u.expiry}</td>
+        <td>${u.put_call.toUpperCase()}</td>
+        <td>${escapeHtml(u.sentiment)}</td>
+        <td class="num">${fmtMoney(u.premium_val)}</td>
+        <td class="num">${u.voi_ratio.toFixed(1)}x</td>
+        <td>${escapeHtml(u.moneyness)}</td>
+        <td class="num">$${fmtNum(u.breakeven)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Top strikes
+  if (d.top_strikes.length) {
+    html += `<div class="result-section"><h3>Top Call Strikes by Total Premium</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th class="num">Strike</th><th class="num">Trades</th>
+          <th class="num">Total</th><th class="num">Avg Spot</th>
+          <th class="num">Distance</th></tr></thead><tbody>`;
+    d.top_strikes.forEach(t => {
+      const distCls = t.distance_pct > 0 ? "" : "neg";
+      html += `<tr><td class="num">$${fmtNum(t.strike)}</td>
+        <td class="num">${t.trades}</td>
+        <td class="num">${fmtMoney(t.total_premium)}</td>
+        <td class="num">$${fmtNum(t.avg_spot)}</td>
+        <td class="num ${distCls}">${fmtPct(t.distance_pct, true)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // DTE breakdown
+  if (d.dte_breakdown.length) {
+    html += `<div class="result-section"><h3>Premium by DTE Bucket</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Bucket</th><th class="num">Trades</th>
+          <th class="num">Bull</th><th class="num">Bear</th>
+          <th class="num">Total</th></tr></thead><tbody>`;
+    d.dte_breakdown.forEach(b => {
+      html += `<tr><td>${escapeHtml(b.bucket)}</td>
+        <td class="num">${b.trades}</td>
+        <td class="num pos">${fmtMoney(b.bull_premium)}</td>
+        <td class="num neg">${fmtMoney(b.bear_premium)}</td>
+        <td class="num">${fmtMoney(b.total_premium)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  // Exec type breakdown
+  if (d.exec_breakdown.length) {
+    html += `<div class="result-section"><h3>Premium by Execution Type</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Type</th><th class="num">Trades</th>
+          <th class="num">Bull</th><th class="num">Bear</th>
+          <th class="num">Total</th></tr></thead><tbody>`;
+    d.exec_breakdown.forEach(b => {
+      html += `<tr><td>${escapeHtml(b.exec_type).toUpperCase()}</td>
+        <td class="num">${b.trades}</td>
+        <td class="num pos">${fmtMoney(b.bull_premium)}</td>
+        <td class="num neg">${fmtMoney(b.bear_premium)}</td>
+        <td class="num">${fmtMoney(b.total_premium)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  return html;
+}
+
+// HTML escaping helper used by the new analyzers.
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   loadConfig();
   refreshCacheStats();
@@ -1338,6 +2037,11 @@ document.addEventListener("DOMContentLoaded", () => {
   $("ticker").addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); $("btn-run").click(); }
   });
+
+  // New analyzers
+  setupTabs();
+  setupDarkPool();
+  setupOptionsFlow();
 });
 </script>
 </body>

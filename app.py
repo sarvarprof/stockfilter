@@ -37,6 +37,13 @@ import cache as ticker_cache
 import insider as insider_mod
 import db_cache
 
+# darkpool/optionsflow lazy-import matplotlib only inside their CLI dashboard
+# functions, so the web API path doesn't require matplotlib/seaborn.
+import darkpool
+import optionsflow
+import io
+import pandas as pd
+
 _sys.path.insert(0, os.path.join(HERE, "valuator"))
 from valuator import StockValuator
 
@@ -488,6 +495,80 @@ def api_screen_all():
         result = screener.screen_all(ticker, **kwargs)
         db_cache.set("screen-all", ticker, kwargs, result, TTL_SCREEN)
         return jsonify({"ok": True, "data": result, "cached": False})
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+            "trace": traceback.format_exc(),
+        }), 500
+
+
+# ---------------------------------------------------------------------------
+# Dark Pool & Options Flow analyzers — CSV upload endpoints
+# ---------------------------------------------------------------------------
+
+# Required CSV columns for each analyzer. We validate before handing off so
+# the user gets a clear error rather than a deep stack trace.
+_DARKPOOL_COLS = {"date", "time", "symbol", "size", "price", "premium"}
+_OPTIONS_COLS  = {"date", "time", "symbol", "expiry", "strike", "put_call",
+                  "side", "spot", "size", "price", "premium",
+                  "sweep_block_split", "volume", "open_int", "conds"}
+
+
+def _read_uploaded_csv(field_name: str) -> pd.DataFrame:
+    """Read a CSV file from a multipart upload field. Raises ValueError on issues."""
+    if field_name not in request.files:
+        raise ValueError(f"No file uploaded under field '{field_name}'")
+    f = request.files[field_name]
+    if not f or f.filename == "":
+        raise ValueError("Empty file upload")
+    if not f.filename.lower().endswith(".csv"):
+        raise ValueError("File must be a .csv")
+    raw = f.read()
+    if not raw:
+        raise ValueError("Uploaded file is empty")
+    try:
+        return pd.read_csv(io.BytesIO(raw))
+    except Exception as e:
+        raise ValueError(f"Could not parse CSV: {e}")
+
+
+@app.route("/api/darkpool", methods=["POST"])
+def api_darkpool():
+    try:
+        df = _read_uploaded_csv("file")
+        missing = _DARKPOOL_COLS - set(df.columns)
+        if missing:
+            return jsonify({
+                "ok": False,
+                "error": f"CSV missing required columns: {sorted(missing)}",
+            }), 400
+        result = darkpool.analyze_for_api(df)
+        return jsonify({"ok": True, "data": result})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+            "trace": traceback.format_exc(),
+        }), 500
+
+
+@app.route("/api/optionsflow", methods=["POST"])
+def api_optionsflow():
+    try:
+        df = _read_uploaded_csv("file")
+        missing = _OPTIONS_COLS - set(df.columns)
+        if missing:
+            return jsonify({
+                "ok": False,
+                "error": f"CSV missing required columns: {sorted(missing)}",
+            }), 400
+        result = optionsflow.analyze_for_api(df)
+        return jsonify({"ok": True, "data": result})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
     except Exception as e:
         return jsonify({
             "ok": False,
